@@ -14,7 +14,7 @@ use utf8;
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
-my $source_path = "https://nabu.usit.uio.no/hf/ilos/enpc2/source";
+my $source_path = "http://127.0.0.1/hf/ilos/cbf/source";
 my $js_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 
 my $mycgi = new CGI;
@@ -35,9 +35,6 @@ my $tableend = "</table>\n";
 
 my @output = ();
 my $numbhits = 0;
-my @ands = ();
-my @nots = ();
-my $gg = "";
 
 if ($searchstring)
 {
@@ -63,13 +60,15 @@ if ($searchstring)
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $sex = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
+		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
 #print "$source -- $sunit<br/>";
 #		$sunit =~ s/(\W)($searchstring)(\W)/$1<b>$2<\/b>$3/i;
 #		$sunit =~ s/^($searchstring)(\W)/<b>$1<\/b>$2/i;
 #		$sunit =~ s/(\W)($searchstring)$/$1<b>$2<\/b>/i;
 #print "$source -- $sunit<br/>";
 		$numbhits++;
-		$sunit =~ s/(.*?)(<b>$searchstring<\/b>)(.*)/$1$2$3/i;
+#		$sunit =~ s/(.*?)(<b>$searchstring<\/b>)(.*)/$1$2$3/i;
+		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
 		my $leftcontext = $1 || "";
 		if (length($leftcontext) > $maxcontext)
 		{
@@ -88,7 +87,7 @@ if ($searchstring)
 		$keyword =~ s/<b>/<span name="kw" class="keyword" onclick="javascript:goto_context2('$action', '', '')">/;
 		$keyword =~ s/<\/b>/<\/span>/;
 
-		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source");
+		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
 	}
 	if ($sortkrit)
 	{
@@ -96,7 +95,7 @@ if ($searchstring)
 	}
 	
 	my $concordance = "";
-	($concordance, $numbhits) = &build_output($numbhits);
+	($concordance, $numbhits) = &build_output($numbhits, $source_path);
 	$concordance = $tablestart . $concordance . $tableend;
 	$concordance = "<center>Number of hits: " . $numbhits ."</center>" . "<br/>" . $concordance;
 	print $concordance;
@@ -111,6 +110,8 @@ exit;
 sub searching
 {
 	my ($query, $nohits, $filters) = @_;
+
+print "$query\n";
 
 	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
 	my $result = get($url);
@@ -144,7 +145,6 @@ sub old_searching
 #		print "$sunit\n";
 		push(@resultlines, $sunit)
 	}
-#	print "$numberofhits\n";
 	return @resultlines;
 }
 
@@ -201,13 +201,11 @@ sub sort_kwic
 	my @matrix = ();
 	foreach my $kline (@output)
 	{
-#NEW
 		if ($sortkrit eq 'right word')
 		{
 			$krit = &get_rightkrit($kline);	
 			my $krit2 = &get_keykrit($kline);
 			$krit2 =~ s/<[^>]+?>//;
-#			$krit2 =~ s/<\/b>//;
 			$krit = "$krit$pad$krit2";
 		}
 		elsif ($sortkrit eq 'left word')
@@ -215,7 +213,6 @@ sub sort_kwic
 			$krit = &get_leftkrit($kline);	
 			my $krit2 = &get_keykrit($kline);
 			$krit2 =~ s/<[^>]+?>//;
-#			$krit2 =~ s/<\/b>//;
 			$krit = "$krit$pad$krit2";
 		}
 		elsif ($sortkrit eq 'keyword')
@@ -223,7 +220,7 @@ sub sort_kwic
 			$krit = &get_keykrit($kline);
 			my $krit2 = &get_rightkrit($kline);
 			$krit =~ s/<[^>]+?>//;
-#			$krit =~ s/<\/b>//;
+
 			if (defined($krit2))
 			{
 				$krit = "$krit$pad$krit2";
@@ -238,7 +235,6 @@ sub sort_kwic
 			$krit = &get_sourcekrit($kline);
 			my $krit2 = &get_keykrit($kline);
 			$krit =~ s/<[^>]+?>//;
-#			$krit =~ s/<\/b>//;
 			$krit = "$krit$pad$krit2";
 		}
 		$krit = lc($krit);
@@ -258,7 +254,7 @@ sub sort_kwic
 sub get_rightkrit
 {
 	my $temp = shift(@_);
-	my ($left, $key, $right, $source, $corr) = split/\t/, $temp;
+	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
 	$right =~ s/&mdash;//g;
 	$right =~ s/^\W+//;
 	my @krits = split/ /, $right;
@@ -269,7 +265,7 @@ sub get_rightkrit
 sub get_leftkrit
 {
 	my $temp = shift(@_);
-	my ($left, $key, $right, $source, $corr) = split/\t/, $temp;
+	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
 	$left =~ s/&mdash;//g;
 	$left = reverse($left);
 	$left =~ s/^\W+//;
@@ -282,31 +278,37 @@ sub get_leftkrit
 sub get_keykrit
 {
 	my $temp = shift(@_);
-	my ($left, $key, $right, $source) = split/\t/, $temp;
+	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
 	return $key;
 }
 
 sub get_sourcekrit
 {
-
+	my $temp = shift(@_);
+	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
+	$source =~ s/\[//;
+	$source =~ s/\]//;
+	$source =~ s/<[^>]+>//g;
+	return $source;
 }
 
 
 sub build_output
 {
-	my $nh = shift(@_);
-
+	my ($nh, $tlink) = @_;
 	my $kwic_line = "";
+	$tlink = '<a target="CBFheader" href="' . $tlink;
 	foreach my $kline (@output)
 	{
-		my ($left, $key, $right, $source) = split/\t/, $kline;
+		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
+		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
 		if ($maxcontext == 1000)
 		{
-			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $source . "]</td></tr><tr><td align='left'></td></tr>\n";
+			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $newsource . "]</td></tr><tr><td align='left'></td></tr>\n";
 		}
 		elsif ($maxcontext == 59)
 		{
-			$kwic_line = $kwic_line. "<tr><td align='right'>" . $left . "</td><td align='center'>" . $key . "</td><td align='left'>" . $right . " [" . $source . "]</td></tr><tr><td colspan='3' align='center'></td></tr>\n";
+			$kwic_line = $kwic_line. "<tr><td align='right'>" . $left . "</td><td align='center'>" . $key . "</td><td align='left'>" . $right . " [" . $newsource . "]</td></tr><tr><td colspan='3' align='center'></td></tr>\n";
 		}
 		elsif ($maxcontext == 2000)
 		{
@@ -315,16 +317,10 @@ sub build_output
 		    $key =~   s/<([^>]+?)>//g;
 		    $source =~ s/<([^>]+?)>//g;
 		    $left =~ s/^ //;
-		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $source . "\n";
+		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $newsource . "\n";
 		}
 	}
 	return $kwic_line, $nh;
-}
-
-
-sub get_source
-{
-
 }
 
 sub skrell

@@ -139,11 +139,12 @@ def complex_query(es, index_name, document_type, q, max_hits, filters):
 
     body_middle = list()
     searchterms = list()
-    regexpchar = re.compile(r'[\.\*\+\?\[\{\(\|]')
+    regexpchar = re.compile(r'[.+?\\*\\[\\{\\(\\|]')
     splitchar = re.compile(" ")
     searchterms = re.split(splitchar, q)
     for term in searchterms:
         term = term.strip()
+        term = re.sub('_', ' ', term)
         if re.search(regexpchar, term):
             to_append = ' { "span_multi" : { "match" : { "regexp": {"rawText": "' + term + '"}}}}'
             body_middle.append(to_append)
@@ -158,6 +159,8 @@ def complex_query(es, index_name, document_type, q, max_hits, filters):
     searchstring = re.sub(r',$', '', searchstring)
 
     searchstring = body_start + searchstring + body_end
+
+#    print(searchstring)
 
     data = json.dumps({})
     tempdict = json.dumps(searchstring)
@@ -196,6 +199,7 @@ if not query:
     sys.exit()
 
 #query = input
+#print(query)
 query = query.strip()
 if re.search(" ", query):
     result = complex_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
@@ -207,8 +211,8 @@ else:
 
 parsed_data = json.dumps(result)
 
-# print(parsed_data)
-# print("\n")
+#print(parsed_data)
+#print("\n")
 
 sunit = json.loads(parsed_data)
 
@@ -228,6 +232,14 @@ result['numberofHits'] = sunit['hits']['total']
 para = list()
 hitsarr = []
 totalnumberofhits = 0
+delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
+#    query = ' ' + query + ' '
+query = re.sub(' ', unicode(delimiter), query)
+query = re.sub('_', ' ', query)
+#print(query)
+#    if re.search('—', query):
+#        print(query)
+pattern = re.compile(query, flags=re.IGNORECASE|re.UNICODE)
 for row in sunit["hits"]["hits"]:
     localDict = {}
     localDict['Title'] = row["_source"]["title"]
@@ -240,8 +252,16 @@ for row in sunit["hits"]["hits"]:
     para = row["_source"]["rawText"]
 #    print(para)
     ind = 0
+#    pattern": "([\\s.,;:<>$=!?#_@%+~/—–‘’“”§¶…`´\"\\{\\}\\[\\]\\(\\)\\*]+)"
+#"—
+#    delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
 #    query = ' ' + query + ' '
-    pattern = re.compile(query, flags=re.IGNORECASE)
+#    query = re.sub(' ', unicode(delimiter), query)
+#    query = re.sub('_', ' ', query)
+#    print(query)
+#    if re.search('—', query):
+#        print(query)
+#    pattern = re.compile(query, flags=re.IGNORECASE|re.UNICODE)
     orig = ''
     rest = ''
     numberofmatches = 0
