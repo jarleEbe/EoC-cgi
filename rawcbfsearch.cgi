@@ -84,6 +84,8 @@ def simple_query(es, index_name, document_type, q, max_hits, filters):
         theFilter = theFilter + ']'
 
     searchstring = ''
+#    q = re.sub(r'\*', r'([^\\\s.;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\()]*)', q)
+#    print(q)
     regexpchar = re.compile(r'[\.\*\+\?\[\{\(\|]')
     if re.search(regexpchar, q):
         searchstring = '{"from": 0, "size": ' + size + ', "query": {"bool": {"must": [ {"regexp": {"rawText": "' + q + '"}} ]' + theFilter + \
@@ -91,7 +93,7 @@ def simple_query(es, index_name, document_type, q, max_hits, filters):
     else:
         searchstring = '{"from": 0, "size": ' + size + ', "query": {"bool": {"must": [ {"match": {"rawText": "' + q + '"}} ]' + theFilter + \
             '}}}'
-
+#    print(searchstring)
     data = json.dumps({})
     tempdict = json.dumps(searchstring)
     data = json.loads(tempdict)
@@ -144,7 +146,7 @@ def complex_query(es, index_name, document_type, q, max_hits, filters):
     searchterms = re.split(splitchar, q)
     for term in searchterms:
         term = term.strip()
-        term = re.sub('_', ' ', term)
+#        term = re.sub('_', ' ', term)
         if re.search(regexpchar, term):
             to_append = ' { "span_multi" : { "match" : { "regexp": {"rawText": "' + term + '"}}}}'
             body_middle.append(to_append)
@@ -201,11 +203,19 @@ if not query:
 #query = input
 #print(query)
 query = query.strip()
+nonwordchar = '([^\\s.,;;:!<>_~/—–‘’“”`´\"\\?\\)\\(]*)'
+
 if re.search(" ", query):
+    if re.search(r'\w\*', query):
+        query = re.sub(r'(\w)\*', ur'\1(.[^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
+    if re.search(r' \*', query):
+        query = re.sub(r' \*', ur' (.[^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
     result = complex_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
 else:
+    query = re.sub(r'\*', ur'([^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
     result = simple_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
 
+#print(query)
 # print(result)
 # print("\n")
 
