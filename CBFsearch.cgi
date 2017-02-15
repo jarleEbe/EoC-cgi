@@ -25,11 +25,22 @@ my $decade = $mycgi->param('decade') || "";
 my $sex = $mycgi->param('sex') || "";
 my $sortkrit = $mycgi->param('sort') || "";
 my $maxcontext = $mycgi->param('maxcontext') || 1000;
+my $maxshow = $mycgi->param('maxshow') || 1000000;
+
+my $filters = "";
+if (defined($sex) && $sex ne '')
+{
+	$filters = "sex=" . lc($sex);
+}
+if (defined($decade) && $decade ne '')
+{
+	$filters = $filters . "decade=" . $decade;
+}
 
 my @contextvalues = ();
 my %contextlabels = ();
 
-my $maxlines = '10000';
+my $maxlines = '5000';
 my $tablestart = "<table align='center' border='0' cellpadding='0' cellspacing='0' width='98%'>\n";
 my $tableend = "</table>\n";
 
@@ -40,21 +51,21 @@ if ($searchstring)
 {
 	&print_header($searchstring);
 
-	my $result = &searching($searchstring, $maxlines, '');
+	my $result = &searching($searchstring, $maxlines, $filters);
 
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
-	my $numberofhits = 10;
+#	my $numberofhits = 10;
 	my $actualnumberofhits = $json_data->{'numberofHits'};
-	if ($actualnumberofhits > $reqnumberofhits)
-	{
-		$numberofhits = $reqnumberofhits;
-	}
-	else
-	{
-		$numberofhits = $actualnumberofhits;
-	}
-
+#	if ($actualnumberofhits > $reqnumberofhits)
+#	{
+#		$numberofhits = $reqnumberofhits;
+#	}
+#	else
+#	{
+#		$numberofhits = $actualnumberofhits;
+#	}
+	my $numberofhits = $json_data->{'numberofHits'};
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
@@ -111,7 +122,7 @@ sub searching
 {
 	my ($query, $nohits, $filters) = @_;
 
-print "$query\n";
+#print "$query\n";
 
 	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
 	my $result = get($url);
@@ -155,7 +166,7 @@ sub print_header
 	print "Content-Type: text/html; charset=utf-8\n\n";
 	print "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
 	print "<html>\n";
-	print "<head><title>ENPC2search</title>\n";
+	print "<head><title>CBFsearch</title>\n";
 	print "<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>\n";
 	print "<link rel='stylesheet' type='text/css' href='$css_path/OMCsearch.css'/>\n";
 	print "<script src='$js_path/selectcorpus.js'></script>\n";

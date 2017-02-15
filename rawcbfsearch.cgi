@@ -4,6 +4,7 @@ from __future__ import print_function
 
 #pylint: disable=C0103
 #pylint: disable=C0111
+#pylint: disable=C0301
 
 # if we want to give our script parameters, we need a special library
 import sys
@@ -93,14 +94,15 @@ def simple_query(es, index_name, document_type, q, max_hits, filters):
     else:
         searchstring = '{"from": 0, "size": ' + size + ', "query": {"bool": {"must": [ {"match": {"rawText": "' + q + '"}} ]' + theFilter + \
             '}}}'
+
 #    print(searchstring)
     data = json.dumps({})
     tempdict = json.dumps(searchstring)
     data = json.loads(tempdict)
 
-    result = es.search(index=index_name, doc_type=document_type, body=data)
+    myResult = es.search(index=index_name, doc_type=document_type, scroll="5m", body=data, request_timeout=60)
 
-    return result
+    return myResult
 
 
 def complex_query(es, index_name, document_type, q, max_hits, filters):
@@ -117,7 +119,6 @@ def complex_query(es, index_name, document_type, q, max_hits, filters):
 
     FilterDict = get_filters(filters)
     theFilter = ''
-
 
     if len(FilterDict) >= 1:
         theFilter = ' "filter" : { "bool" : {"must": [ '
@@ -168,16 +169,23 @@ def complex_query(es, index_name, document_type, q, max_hits, filters):
     tempdict = json.dumps(searchstring)
     data = json.loads(tempdict)
 
-    result = es.search(index=index_name, doc_type=document_type, body=data)
+    myResult = es.search(index=index_name, doc_type=document_type, scroll="5m", body=data, request_timeout=60)
 
-    return result
+    return myResult
+
+def scrolling(es, sid):
+
+    thescroll = '{"scroll_id" : ' + sid + '}'
+    scrollresult = es.scroll(scroll="5m", scroll_id=sid, request_timeout=60)
+
+    return scrollresult
 
 
 # MAIN
 
 query = ''
 filters = ''
-max_no_hits = 1000
+max_no_hits = 5000
 form = cgi.FieldStorage()
 
 if form.has_key('q'):
@@ -187,7 +195,7 @@ else:
 if form.has_key('nohits'):
     max_no_hits = str(form.getvalue('nohits'))
 else:
-    max_no_hits = 1000
+    max_no_hits = 5000
 if form.has_key('filter'):
     filters = str(form.getvalue('filter'))
 else:
@@ -200,8 +208,6 @@ print("\n\n")
 if not query:
     sys.exit()
 
-#query = input
-#print(query)
 query = query.strip()
 nonwordchar = '([^\\s.,;;:!<>_~/—–‘’“”`´\"\\?\\)\\(]*)'
 
@@ -215,113 +221,74 @@ else:
     query = re.sub(r'\*', ur'([^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
     result = simple_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
 
-#print(query)
-# print(result)
-# print("\n")
-
 parsed_data = json.dumps(result)
-
-#print(parsed_data)
-#print("\n")
-
 sunit = json.loads(parsed_data)
-
-#print(json.dumps(sunit, indent=4))
-# print("\n")
 
 result = dict()
 result['requestednoHits'] = max_no_hits
 result['searchstring'] = query
 result['numberofHits'] = sunit['hits']['total']
 
-#print(sunit['hits']['total'])
-
-# print(sunit['hits']['hits'][0]['highlight']['sunit'])
-# print("\n")
+scrollId = sunit['_scroll_id']
 
 para = list()
 hitsarr = []
 totalnumberofhits = 0
 delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
-#    query = ' ' + query + ' '
 query = re.sub(' ', unicode(delimiter), query)
 query = re.sub('_', ' ', query)
-#print(query)
-#    if re.search('—', query):
-#        print(query)
 pattern = re.compile(query, flags=re.IGNORECASE|re.UNICODE)
-for row in sunit["hits"]["hits"]:
-    localDict = {}
-    localDict['Title'] = row["_source"]["title"]
-    localDict['Author'] = row["_source"]["author"]
-    localDict['Decade'] = row["_source"]["decade"]
-    localDict['Sex'] = row["_source"]["sex"]
-    localDict['textId'] = row["_source"]["textId"]
-    localDict['sunitId'] = row["_source"]["sunitId"]
-    localDict['localId'] = row["_source"]["localId"]
-    para = row["_source"]["rawText"]
-#    print(para)
-    ind = 0
-#    pattern": "([\\s.,;:<>$=!?#_@%+~/—–‘’“”§¶…`´\"\\{\\}\\[\\]\\(\\)\\*]+)"
-#"—
-#    delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
-#    query = ' ' + query + ' '
-#    query = re.sub(' ', unicode(delimiter), query)
-#    query = re.sub('_', ' ', query)
-#    print(query)
-#    if re.search('—', query):
-#        print(query)
-#    pattern = re.compile(query, flags=re.IGNORECASE|re.UNICODE)
-    orig = ''
-    rest = ''
-    numberofmatches = 0
-    endofqueryindex = 1000000
-    for c in para:
-        temp = para[ind:len(para)]
-        if re.match(pattern, temp):
-            numberofmatches += 1
-            totalnumberofhits += 1
-            stringsofar = orig + '<b>' + temp
-            orig = orig + '<b>'
-            rest = para[ind:len(para)]
-#           print(rest)
-#           print(str(len(rest)))
-            rest = re.sub(pattern, '', rest, 1)
-#           print(rest)
-#           print(str(len(rest)))
-#           print(str(len(para)))
-            endofqueryindex = len(para) - len(rest)
-#           print(str(endofqueryindex))
-#            print(temp)
-#            print(stringsofar)
-#            print(rest)
-        if ind == endofqueryindex:
-            orig = orig + '</b>'
-        orig = orig + c
-        ind += 1
-#    print(str(numberofmatches))
-#    print("\n")
-    if numberofmatches > 1:
-        for ind in range(0, numberofmatches):
-            temp = orig
-            temp = temp.replace('<b>', '<c>', 1)
-            temp = temp.replace('</b>', '</c>', 1)
-            temp = temp.replace('<b>', '')
-            temp = temp.replace('</b>', '')
-            temp = temp.replace('<c>', '<b>')
-            temp = temp.replace('</c>', '</b>')
-#            print(temp)
-            localDict['sunit'] = temp
-            hitsarr.append(localDict.copy())
-#            jsontemp = json.dumps(localDict, indent=4)
-#            print(jsontemp)
-#            print(orig)
-            orig = orig.replace('<b>', '', 1)
-            orig = orig.replace('</b>', '', 1)
-    else:
-        localDict['sunit'] = orig
-        hitsarr.append(localDict)
-#        print(orig)
+
+while sunit['hits']['hits']:
+    for row in sunit['hits']['hits']:
+        localDict = {}
+        localDict['Title'] = row["_source"]["title"]
+        localDict['Author'] = row["_source"]["author"]
+        localDict['Decade'] = row["_source"]["decade"]
+        localDict['Sex'] = row["_source"]["sex"]
+        localDict['textId'] = row["_source"]["textId"]
+        localDict['sunitId'] = row["_source"]["sunitId"]
+        localDict['localId'] = row["_source"]["localId"]
+        para = row["_source"]["rawText"]
+        ind = 0
+        orig = ''
+        rest = ''
+        numberofmatches = 0
+        endofqueryindex = 1000000
+        for c in para:
+            temp = para[ind:len(para)]
+            if re.match(pattern, temp):
+                numberofmatches += 1
+                totalnumberofhits += 1
+                stringsofar = orig + '<b>' + temp
+                orig = orig + '<b>'
+                rest = para[ind:len(para)]
+                rest = re.sub(pattern, '', rest, 1)
+                endofqueryindex = len(para) - len(rest)
+            if ind == endofqueryindex:
+                orig = orig + '</b>'
+            orig = orig + c
+            ind += 1
+        if numberofmatches > 1:
+            for ind in range(0, numberofmatches):
+                temp = orig
+                temp = temp.replace('<b>', '<c>', 1)
+                temp = temp.replace('</b>', '</c>', 1)
+                temp = temp.replace('<b>', '')
+                temp = temp.replace('</b>', '')
+                temp = temp.replace('<c>', '<b>')
+                temp = temp.replace('</c>', '</b>')
+                localDict['sunit'] = temp
+                hitsarr.append(localDict.copy())
+                orig = orig.replace('<b>', '', 1)
+                orig = orig.replace('</b>', '', 1)
+        else:
+            localDict['sunit'] = orig
+            hitsarr.append(localDict)
+    newresult = scrolling(es, scrollId)
+    new_parsed_data = json.dumps(newresult)
+    sunit = json.loads(new_parsed_data)
+
 result['numberofHits'] = str(totalnumberofhits)
 result['Hits'] = hitsarr
 jsonString = json.dumps(result, indent=4)
