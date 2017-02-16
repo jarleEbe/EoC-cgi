@@ -14,6 +14,7 @@ use utf8;
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
+my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
 my $source_path = "http://127.0.0.1/hf/ilos/cbf/source";
 my $js_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 
@@ -55,16 +56,7 @@ if ($searchstring)
 
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
-#	my $numberofhits = 10;
 	my $actualnumberofhits = $json_data->{'numberofHits'};
-#	if ($actualnumberofhits > $reqnumberofhits)
-#	{
-#		$numberofhits = $reqnumberofhits;
-#	}
-#	else
-#	{
-#		$numberofhits = $actualnumberofhits;
-#	}
 	my $numberofhits = $json_data->{'numberofHits'};
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
@@ -72,13 +64,7 @@ if ($searchstring)
 		my $sex = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
-#print "$source -- $sunit<br/>";
-#		$sunit =~ s/(\W)($searchstring)(\W)/$1<b>$2<\/b>$3/i;
-#		$sunit =~ s/^($searchstring)(\W)/<b>$1<\/b>$2/i;
-#		$sunit =~ s/(\W)($searchstring)$/$1<b>$2<\/b>/i;
-#print "$source -- $sunit<br/>";
 		$numbhits++;
-#		$sunit =~ s/(.*?)(<b>$searchstring<\/b>)(.*)/$1$2$3/i;
 		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
 		my $leftcontext = $1 || "";
 		if (length($leftcontext) > $maxcontext)
@@ -95,8 +81,11 @@ if ($searchstring)
 			$rightcontext = substr($rightcontext, 0, $maxcontext) . "&hellip;";
 		}
 
-		$keyword =~ s/<b>/<span name="kw" class="keyword" onclick="javascript:goto_context2('$action', '', '')">/;
-		$keyword =~ s/<\/b>/<\/span>/;
+#		$keyword =~ s/<b>/<span name="kw" class="keyword" onclick="javascript:goto_context2('$contextaction', $source, '')">/;
+#		$keyword =~ s/<\/b>/<\/span>/;
+		my $link = $contextaction . $source;
+		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
+		$keyword =~ s/<\/b>/<\/a>/;
 
 		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
 	}
@@ -122,49 +111,17 @@ sub searching
 {
 	my ($query, $nohits, $filters) = @_;
 
-#print "$query\n";
-
 	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
 	my $result = get($url);
 	die "Couldn't get it!" unless defined $result;
 	return $result;
 }
 
-sub old_searching
-{
-	my ($query, $nohits, $filters) = @_;
-
-	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
-	my $result = get($url);
-	die "Couldn't get it!" unless defined $result;
-	my $json_data = decode_json($result);
-	my $reqnumberofhits = $json_data->{'requestednoHits'};
-	my $numberofhits = 10;
-	my $actualnumberofhits = $json_data->{'numberofHits'};
-	if ($actualnumberofhits < $reqnumberofhits)
-	{
-		$numberofhits = $actualnumberofhits;
-	}
-	else
-	{
-		$numberofhits = $reqnumberofhits;
-	}
-	my @resultlines = ();
-	for (my $ind = 0; $ind < $numberofhits; $ind++)
-	{
-		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
-#		print "$sunit\n";
-		push(@resultlines, $sunit)
-	}
-	return @resultlines;
-}
-
-
 sub print_header
 {
 	my $ss = shift(@_);
 	print "Content-Type: text/html; charset=utf-8\n\n";
-	print "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
+	print "<!DOCTYPE html>\n";
 	print "<html>\n";
 	print "<head><title>CBFsearch</title>\n";
 	print "<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>\n";
