@@ -15,6 +15,7 @@ import requests
 import json
 import cgi
 import cgitb
+import pprint
 
 from elasticsearch import Elasticsearch
 
@@ -234,6 +235,11 @@ scrollId = sunit['_scroll_id']
 para = list()
 hitsarr = []
 totalnumberofhits = 0
+male = 0
+female = 0
+unknownsex = 0
+numberoftexts = {}
+decades = {}
 delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
 query = re.sub(' ', unicode(delimiter), query)
 query = re.sub('_', ' ', query)
@@ -250,6 +256,15 @@ while sunit['hits']['hits']:
         localDict['sunitId'] = row["_source"]["sunitId"]
         localDict['localId'] = row["_source"]["localId"]
         para = row["_source"]["rawText"]
+        currentkey = row["_source"]["textId"]
+        thisdecade = row["_source"]["decade"]
+        if thisdecade == '':
+            thisdecade = 'Undated'
+#            print(row["_source"]["textId"])
+        if currentkey in numberoftexts:
+            x = 1
+        else:
+            numberoftexts[currentkey] = row["_source"]["sex"]
         ind = 0
         orig = ''
         rest = ''
@@ -282,14 +297,43 @@ while sunit['hits']['hits']:
                 hitsarr.append(localDict.copy())
                 orig = orig.replace('<b>', '', 1)
                 orig = orig.replace('</b>', '', 1)
+                if row["_source"]["sex"] == 'male':
+                    male += 1
+                elif row["_source"]["sex"] == 'female':
+                    female += 1
+                else:
+                    unknownsex += 1
+                if thisdecade in decades:
+                    dec = decades[thisdecade]
+                    dec += 1
+                    decades[thisdecade] = dec
+                else:
+                    decades[thisdecade] = 1
         else:
             localDict['sunit'] = orig
             hitsarr.append(localDict)
+            if row["_source"]["sex"] == 'male':
+                male += 1
+            elif row["_source"]["sex"] == 'female':
+                female += 1
+            else:
+                unknownsex += 1
+            if thisdecade in decades:
+                dec = decades[thisdecade]
+                dec += 1
+                decades[thisdecade] = dec
+            else:
+                decades[thisdecade] = 1
     newresult = scrolling(es, scrollId)
     new_parsed_data = json.dumps(newresult)
     sunit = json.loads(new_parsed_data)
 
 result['numberofHits'] = str(totalnumberofhits)
+result['male'] = str(male)
+result['female'] = str(female)
+result['numberofTexts'] = str(len(numberoftexts.keys()))
+result['Decades'] = decades
 result['Hits'] = hitsarr
 jsonString = json.dumps(result, indent=4)
 print(jsonString)
+#pprint.pprint(result['Decades'])

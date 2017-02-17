@@ -7,6 +7,7 @@ use CGI;
 use CGI::Carp;
 use LWP::Simple;
 use JSON;
+use Data::Dumper;
 use utf8;
 
 #nabu
@@ -47,6 +48,9 @@ my $tableend = "</table>\n";
 
 my @output = ();
 my $numbhits = 0;
+my $male = 0;
+my $female = 0;
+my $numberoftexts = 0;
 
 if ($searchstring)
 {
@@ -57,6 +61,11 @@ if ($searchstring)
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
 	my $actualnumberofhits = $json_data->{'numberofHits'};
+
+	my $male = $json_data->{'male'};
+	my $female = $json_data->{'female'};
+	my $numberoftexts = $json_data->{'numberofTexts'};
+
 	my $numberofhits = $json_data->{'numberofHits'};
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
@@ -97,7 +106,16 @@ if ($searchstring)
 	my $concordance = "";
 	($concordance, $numbhits) = &build_output($numbhits, $source_path);
 	$concordance = $tablestart . $concordance . $tableend;
-	$concordance = "<center>Number of hits: " . $numbhits ."</center>" . "<br/>" . $concordance;
+	my $decades = $json_data->{'Decades'};
+#	print Dumper($decades);
+	my $decadesstring = '';
+	foreach my $key (sort(keys(%$decades)))
+	{
+#		print $key;
+#		print $decades->{$key};
+		$decadesstring = $decadesstring . $key . ' : ' . $decades->{$key} . ', ';
+	}
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts (male: " . $male . " / female " . $female . ")<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 }
 else
