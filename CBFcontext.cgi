@@ -8,6 +8,7 @@ use CGI::Carp;
 use LWP::Simple;
 use JSON;
 use utf8;
+use Encode qw(decode encode);
 
 #nabu
 # 
@@ -52,6 +53,7 @@ if ($id)
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
 		my $rawtext = $json_data->{'Context'}->[$ind]->{'rawText'};
+		$rawtext = encode('utf-8', $rawtext);
 		my $source = $json_data->{'Context'}->[$ind]->{'sunitId'};
 		print "<tr>\n";
 		print "<td>$rawtext</td>\n";

@@ -8,7 +8,11 @@ use CGI::Carp;
 use LWP::Simple;
 use JSON;
 use Data::Dumper;
+use Encode qw(decode encode);
 use utf8;
+use HTML::Entities;
+
+binmode STDIN, ":utf8";
 
 #nabu
 # 
@@ -70,6 +74,7 @@ if ($searchstring)
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
+		$sunit = encode('utf-8', $sunit);
 		my $sex = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
@@ -129,9 +134,15 @@ sub searching
 {
 	my ($query, $nohits, $filters) = @_;
 
+#	print $query;
+	$query = decode('utf-8', $query);
+#	print $query;
 	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
 	my $result = get($url);
 	die "Couldn't get it!" unless defined $result;
+#	print $result;
+	$result = encode('utf-8', $result);
+#	print $result;
 	return $result;
 }
 
@@ -142,7 +153,7 @@ sub print_header
 	print "<!DOCTYPE html>\n";
 	print "<html>\n";
 	print "<head><title>CBFsearch</title>\n";
-	print "<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>\n";
+#	print "<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>\n";
 	print "<link rel='stylesheet' type='text/css' href='$css_path/OMCsearch.css'/>\n";
 	print "<script src='$js_path/selectcorpus.js'></script>\n";
 	print "</head>\n";

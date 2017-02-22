@@ -24,6 +24,7 @@ sys.setdefaultencoding("utf-8")
 
 UTF8Writer = codecs.getwriter('utf8')
 sys.stdout = UTF8Writer(sys.stdout)
+sys.stdin = UTF8Writer(sys.stdin)
 
 # FUNCTIONS
 
@@ -190,7 +191,8 @@ max_no_hits = 5000
 form = cgi.FieldStorage()
 
 if form.has_key('q'):
-    query = str(form.getvalue('q'))
+    query = str(form.getvalue('q').decode('utf8'))
+    sys.stderr.write(query)
 else:
     query = ''
 if form.has_key('nohits'):
@@ -204,8 +206,10 @@ else:
 
 es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
-print("Content-Type: text/html")
+print("Content-Type: text/html; charset=utf-8")
 print("\n\n")
+#print(sys.stdout.encoding)
+
 if not query:
     sys.exit()
 
@@ -243,7 +247,7 @@ decades = {}
 delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
 query = re.sub(' ', unicode(delimiter), query)
 query = re.sub('_', ' ', query)
-pattern = re.compile(query, flags=re.IGNORECASE|re.UNICODE)
+pattern = re.compile(unicode(query), flags=re.IGNORECASE|re.UNICODE)
 
 while sunit['hits']['hits']:
     for row in sunit['hits']['hits']:
@@ -334,6 +338,6 @@ result['female'] = str(female)
 result['numberofTexts'] = str(len(numberoftexts.keys()))
 result['Decades'] = decades
 result['Hits'] = hitsarr
-jsonString = json.dumps(result, indent=4)
+jsonString = json.dumps(result, indent=4, ensure_ascii=False)
 print(jsonString)
 #pprint.pprint(result['Decades'])
