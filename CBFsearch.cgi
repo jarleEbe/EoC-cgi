@@ -55,6 +55,7 @@ my $numbhits = 0;
 my $male = 0;
 my $female = 0;
 my $numberoftexts = 0;
+my $statsString = '';
 
 if ($searchstring)
 {
@@ -114,14 +115,20 @@ if ($searchstring)
 	my $decades = $json_data->{'Decades'};
 #	print Dumper($decades);
 	my $decadesstring = '';
+#$json = '{"Decades" : { "1990": 2, "1980": 6, "1940": 2, "1950": 2, "1960": 1, "1970": 4, "1920": 1, "1930": 5, "1910": 2, "2010": 1, "1900": 4}, "female": 9, "male": 21, "totnoWords": 30 }';
+	$statsString = '{"totnoWords":' . $numbhits . ', "male":' .$male . ', "female":' . $female . ', "Decades": {';
 	foreach my $key (sort(keys(%$decades)))
 	{
 #		print $key;
 #		print $decades->{$key};
+		$statsString = $statsString . '"' . $key . '":' . $decades->{$key} . ", ";  
 		$decadesstring = $decadesstring . $key . ' : ' . $decades->{$key} . ', ';
 	}
+	$statsString =~ s/, $//;
+	$statsString = $statsString . '}}';
 	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts (male: " . $male . " / female " . $female . ")<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
+	print $statsString;
 }
 else
 {

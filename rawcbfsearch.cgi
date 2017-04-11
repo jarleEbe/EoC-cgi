@@ -260,6 +260,8 @@ while sunit['hits']['hits']:
         localDict['sunitId'] = row["_source"]["sunitId"]
         localDict['localId'] = row["_source"]["localId"]
         para = row["_source"]["rawText"]
+# Cheats by adding an extra blank in case hit is at end of line
+        para = para + ' '
         currentkey = row["_source"]["textId"]
         thisdecade = row["_source"]["decade"]
         if thisdecade == '':

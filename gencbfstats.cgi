@@ -22,39 +22,28 @@ sys.stdout = UTF8Writer(sys.stdout)
 
 # MAIN
 
-query = ''
+jsonParam = ''
 normSize = 1000000
 form = cgi.FieldStorage()
 
-if form.has_key('sunitid'):
-    query = str(form.getvalue('sunitid'))
+if form.has_key('json'):
+    jsonParam = str(form.getvalue('json'))
 else:
-    query = ''
+    jsonParam = ''
 
-#    parsed_data = json.dumps(result)
-#    sunit = json.loads(parsed_data)
-#    lid = sunit['hits']['hits'][0]['_source']['localId']
-#    localdict = {}
-#    localdict['sunitId'] = sunit['hits']['hits'][0]['_source']['sunitId']
-#    localdict['rawText'] = sunit['hits']['hits'][0]['_source']['rawText']
-#    therange += 1
-#    hitsarr.append(localdict.copy())
+print("Content-Type: text/html")
+print("\n\n")
 
-with open('resultcbf.json') as data_file:
-    inputData = json.load(data_file)
+inputData = json.loads(jsonParam)
 inputDataSpruce = json.dumps(inputData)
 
+#with open('resultcbf.json') as data_file:
+#    inputData = json.load(data_file)
+#inputDataSpruce = json.dumps(inputData)
 
 with open('cbf.json') as data_file:
     allData = json.load(data_file)
 allDataSpruce = json.dumps(allData)
-
-print("Content-Type: text/html")
-print("\n\n")
-pprint(allDataSpruce)
-print("<br/><br/>")
-pprint(inputDataSpruce)
-print("<br/><br/>")
 
 inputMale = inputData['male']
 allMale = allData['male']
