@@ -18,38 +18,31 @@ my @fields = $mycgi->param;
 
 my $json = $mycgi->param('json') || "";
 
-#$json = '{"Decades" : { "1990": 2, "1980": 6, "1940": 2, "1950": 2, "1960": 1, "1970": 4, "1920": 1, "1930": 5, "1910": 2, "2010": 1, "1900": 4}, "female": 9, "male": 21, "totnoWords": 30 }';
-$json = '{"totnoWords":2089, "male":1245, "female":844, "Decades": {"1900":301, "1910":256, "1920":319, "1930":217, "1940":119, "1950":93, "1960":129, "1970":95, "1980":156, "1990":197, "2000":89, "2010":118}}';
+#$json = '{"totnoWords":2089, "male":1245, "female":844, "Decades": {"1900":301, "1910":256, "1920":319, "1930":217, "1940":119, "1950":93, "1960":129, "1970":95, "1980":156, "1990":197, "2000":89, "2010":118}}';
 if ($json)
 {
 
 	my $jsonResult = &getthestats($statsPath, $json);
 	my $json_data = decode_json($jsonResult);
+	my $male = $json_data->{'male'};
+	my $female = $json_data->{'female'};
 	my $decades = $json_data->{'Decades'};
 
-#	print $mycgi->header(-charset => 'utf-8');
-#	print "<!DOCTYPE html\">\n";
 	my $vektorString = '';
 	foreach my $decade (sort keys %$decades)
 	{
 		my $num = $decades->{$decade};
-#		print "<p>$decade / $num</p>";
 		$vektorString = $vektorString . '["' . $decade . '",' . $num . '],' 
-#["1920", 2043234], 
-
 	}
 	$vektorString =~ s/,$//;
-#	print "$vektorString</html>";
-
-#	my $actualnumberofhits = $json_data->{'numberofHits'};
-#	my $numberofhits = $json_data->{'Range'};
-#	for (my $ind = 0; $ind < $numberofhits; $ind++)
-#	{
-#		my $rawtext = $json_data->{'Context'}->[$ind]->{'rawText'};
-#		$rawtext = encode('utf-8', $rawtext);
-#		my $source = $json_data->{'Context'}->[$ind]->{'sunitId'};
-#	}
-	my $returnvalue = &printJavascript($vektorString);
+	$json =~ s/\{//g;
+	$json =~ s/\}//g;
+	$json =~ s/, "male/<br\/>"male/g;
+	$json =~ s/, "female/<br\/>"female/g;
+	$json =~ s/, "Decades/<br\/>"Decades/g;
+	$json =~ s/:/: /g;
+	$json =~ s/"//g;
+	my $returnvalue = &printJavascript($vektorString, $json, $male, $female);
 }
 else
 {
@@ -60,11 +53,11 @@ exit;
 
 sub printJavascript
 {
-	my ($data) = @_;
+	my ($data, $jsonCopy, $msex, $fsex) = @_;
 
 	print $mycgi->header(-charset => 'utf-8');
 	print "<!DOCTYPE html\">\n";
-	my $htmlContent = &prepareHtml($data);
+	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex);
 	print $htmlContent;
 }
 
@@ -83,7 +76,7 @@ sub getthestats
 
 sub prepareHtml
 {
-	my ($vektor) = @_;
+	my ($vektor,  $myJSON, $male, $female) = @_;
 #print <<HTML;
 #$vektor = '1900';
 my $html = <<"HTMLEND";
@@ -120,7 +113,7 @@ $vektor
 //["2010", 1407688]
 ]);
 // Set chart options
-var options = {'title':'No. of words per decade', 'width':700, 'height':500};
+var options = {'title':'No. of words per mil.', 'width':700, 'height':500};
 // Instantiate and draw our chart, passing in some options.
 var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
 chart.draw(data, options);
@@ -130,6 +123,7 @@ chart.draw(data, options);
 <body>
 <!--Div that will hold the pie chart-->
 <div id="chart_div"></div>
+<div id="raw_data"><p>Male / Female per mil.: $male / $female</p><p>$myJSON</p></div>
 </body>
 </html>
 HTMLEND

@@ -22,6 +22,7 @@ my $action = "http://127.0.0.1/cgi-bin/cbf";
 my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
 my $source_path = "http://127.0.0.1/hf/ilos/cbf/source";
 my $js_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
+my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
 
 my $mycgi = new CGI;
 my @fields = $mycgi->param;
@@ -126,9 +127,9 @@ if ($searchstring)
 	}
 	$statsString =~ s/, $//;
 	$statsString = $statsString . '}}';
-	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts (male: " . $male . " / female " . $female . ")<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
+	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'>Stats</a>";
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts (male: " . $male . " / female " . $female . ") " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
-	print $statsString;
 }
 else
 {
