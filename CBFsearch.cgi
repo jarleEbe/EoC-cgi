@@ -70,6 +70,8 @@ if ($searchstring)
 
 	my $male = $json_data->{'male'};
 	my $female = $json_data->{'female'};
+	my $nomaletexts = $json_data->{'noMaleTexts'};
+	my $nofemaletexts = $json_data->{'noFemaleTexts'};
 	my $numberoftexts = $json_data->{'numberofTexts'};
 
 	my $numberofhits = $json_data->{'numberofHits'};
@@ -125,10 +127,11 @@ if ($searchstring)
 		$statsString = $statsString . '"' . $key . '":' . $decades->{$key} . ", ";  
 		$decadesstring = $decadesstring . $key . ' : ' . $decades->{$key} . ', ';
 	}
+	$decadesstring =~ s/, $//;
 	$statsString =~ s/, $//;
 	$statsString = $statsString . '}}';
-	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'>Stats</a>";
-	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts (male: " . $male . " / female " . $female . ") " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
+	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'> More statistics</a>";
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 }
 else

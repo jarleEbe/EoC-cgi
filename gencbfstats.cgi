@@ -57,6 +57,8 @@ femaleSpruce = "%.2f" % female
 
 statsDict = dict()
 statsDict['male'] = str(maleSpruce)
+statsDict['noMaleWords'] = str(allMale)
+statsDict['noFemaleWords'] = str(allFemale)
 statsDict['female'] = str(femaleSpruce)
 statsDict['Decades'] = dict()
 for decade, words in inputData['Decades'].items():

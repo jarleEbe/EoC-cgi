@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#Ebeling, USIT, 11.04.2017.
+#Ebeling, USIT, 18.04.2017.
 
 use strict;
 use CGI;
@@ -12,6 +12,8 @@ use Encode qw(decode encode);
 
 #nabu
 my $statsPath = "http://127.0.0.1/cgi-bin/cbf/gencbfstats.cgi";
+my $scriptpath = "/home/jarlee/prog/R/script/";
+my $proptest = "scriptPropTest.R";
 
 my $mycgi = new CGI;
 my @fields = $mycgi->param;
@@ -25,7 +27,9 @@ if ($json)
 	my $jsonResult = &getthestats($statsPath, $json);
 	my $json_data = decode_json($jsonResult);
 	my $male = $json_data->{'male'};
+	my $allmale = $json_data->{'noMaleWords'};
 	my $female = $json_data->{'female'};
+	my $allfemale = $json_data->{'noFemaleWords'};
 	my $decades = $json_data->{'Decades'};
 
 	my $vektorString = '';
@@ -42,7 +46,10 @@ if ($json)
 	$json =~ s/, "Decades/<br\/>"Decades/g;
 	$json =~ s/:/: /g;
 	$json =~ s/"//g;
-	my $returnvalue = &printJavascript($vektorString, $json, $male, $female);
+
+	my $arguments = $male . " " . $female . " " . $allmale . " " . $allfemale;
+	my $proptestPvalue = getRstats($arguments, $scriptpath, $proptest);
+	my $returnvalue = &printJavascript($vektorString, $json, $male, $female, $proptestPvalue);
 }
 else
 {
@@ -53,11 +60,11 @@ exit;
 
 sub printJavascript
 {
-	my ($data, $jsonCopy, $msex, $fsex) = @_;
+	my ($data, $jsonCopy, $msex, $fsex, $pvalue) = @_;
 
 	print $mycgi->header(-charset => 'utf-8');
 	print "<!DOCTYPE html\">\n";
-	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex);
+	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex, $pvalue);
 	print $htmlContent;
 }
 
@@ -74,9 +81,38 @@ sub getthestats
 
 }
 
+
+sub getRstats
+{
+
+	my ($args, $path, $script) = @_;
+
+	my $command = 'Rscript ' . $path . $script . ' ' . $args;
+#	print "<p>$command</p>";
+	my $result = `$command`;
+	die "Couldn't get it!" unless defined $result;
+	my @output = split/\n/, $result;
+	my $pvalue = '';
+	foreach (@output)
+	{
+		if (/p-value/)
+		{
+			$pvalue = $_;
+		}
+	}
+	$pvalue =~ s/^(.*)p-value = (.*)/$2/;
+	if ($pvalue =~ /e/)
+	{
+		$pvalue = "< 0.001";
+	}
+#	print "<p>$pvalue</p>";
+	return $pvalue;
+}
+
+
 sub prepareHtml
 {
-	my ($vektor,  $myJSON, $male, $female) = @_;
+	my ($vektor,  $myJSON, $male, $female, $pval) = @_;
 #print <<HTML;
 #$vektor = '1900';
 my $html = <<"HTMLEND";
@@ -113,7 +149,7 @@ $vektor
 //["2010", 1407688]
 ]);
 // Set chart options
-var options = {'title':'No. of words per mil.', 'width':700, 'height':500};
+var options = {'title':'No. of words per mil. per decade', 'width':700, 'height':500};
 // Instantiate and draw our chart, passing in some options.
 var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
 chart.draw(data, options);
@@ -123,7 +159,7 @@ chart.draw(data, options);
 <body>
 <!--Div that will hold the pie chart-->
 <div id="chart_div"></div>
-<div id="raw_data"><p>Male / Female per mil.: $male / $female</p><p>$myJSON</p></div>
+<div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $pval)</p><p>$myJSON</p></div>
 </body>
 </html>
 HTMLEND

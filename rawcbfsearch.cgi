@@ -240,6 +240,8 @@ para = list()
 hitsarr = []
 totalnumberofhits = 0
 male = 0
+nomaletexts = 0
+nofemaletexts = 0
 female = 0
 unknownsex = 0
 numberoftexts = {}
@@ -271,6 +273,10 @@ while sunit['hits']['hits']:
             x = 1
         else:
             numberoftexts[currentkey] = row["_source"]["sex"]
+            if localDict['Sex'] == 'male':
+                nomaletexts += 1
+            if localDict['Sex'] == 'female':
+                nofemaletexts += 1
         ind = 0
         orig = ''
         rest = ''
@@ -336,6 +342,8 @@ while sunit['hits']['hits']:
 
 result['numberofHits'] = str(totalnumberofhits)
 result['male'] = str(male)
+result['noMaleTexts'] = str(nomaletexts)
+result['noFemaleTexts'] = str(nofemaletexts)
 result['female'] = str(female)
 result['numberofTexts'] = str(len(numberoftexts.keys()))
 result['Decades'] = decades
