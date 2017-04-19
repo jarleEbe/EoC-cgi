@@ -14,8 +14,7 @@ use HTML::Entities;
 
 binmode STDIN, ":utf8";
 
-#nabu
-# 
+# Nabu
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
@@ -98,9 +97,6 @@ if ($searchstring)
 		{
 			$rightcontext = substr($rightcontext, 0, $maxcontext) . "&hellip;";
 		}
-
-#		$keyword =~ s/<b>/<span name="kw" class="keyword" onclick="javascript:goto_context2('$contextaction', $source, '')">/;
-#		$keyword =~ s/<\/b>/<\/span>/;
 		my $link = $contextaction . $source;
 		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
 		$keyword =~ s/<\/b>/<\/a>/;
@@ -116,14 +112,10 @@ if ($searchstring)
 	($concordance, $numbhits) = &build_output($numbhits, $source_path);
 	$concordance = $tablestart . $concordance . $tableend;
 	my $decades = $json_data->{'Decades'};
-#	print Dumper($decades);
 	my $decadesstring = '';
-#$json = '{"Decades" : { "1990": 2, "1980": 6, "1940": 2, "1950": 2, "1960": 1, "1970": 4, "1920": 1, "1930": 5, "1910": 2, "2010": 1, "1900": 4}, "female": 9, "male": 21, "totnoWords": 30 }';
 	$statsString = '{"totnoWords":' . $numbhits . ', "male":' .$male . ', "female":' . $female . ', "Decades": {';
 	foreach my $key (sort(keys(%$decades)))
 	{
-#		print $key;
-#		print $decades->{$key};
 		$statsString = $statsString . '"' . $key . '":' . $decades->{$key} . ", ";  
 		$decadesstring = $decadesstring . $key . ' : ' . $decades->{$key} . ', ';
 	}
@@ -145,15 +137,11 @@ sub searching
 {
 	my ($query, $nohits, $filters) = @_;
 
-#	print $query;
 	$query = decode('utf-8', $query);
-#	print $query;
 	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
 	my $result = get($url);
 	die "Couldn't get it!" unless defined $result;
-#	print $result;
 	$result = encode('utf-8', $result);
-#	print $result;
 	return $result;
 }
 
@@ -164,7 +152,6 @@ sub print_header
 	print "<!DOCTYPE html>\n";
 	print "<html>\n";
 	print "<head><title>CBFsearch</title>\n";
-#	print "<meta http-equiv='Content-Type' content='text/html; charset=utf-8'/>\n";
 	print "<link rel='stylesheet' type='text/css' href='$css_path/OMCsearch.css'/>\n";
 	print "<script src='$js_path/selectcorpus.js'></script>\n";
 	print "</head>\n";
