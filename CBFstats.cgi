@@ -32,17 +32,28 @@ if ($json)
 	my $female = $json_data->{'female'};
 	my $allfemale = $json_data->{'noFemaleWords'};
 	my $decades = $json_data->{'Decades'};
+	my $pvalues = $json_data->{'Pvalues'};
 
 	my $jsonRaw = decode_json($json);
 	my $rawmale = $jsonRaw->{'male'};
 	my $rawfemale = $jsonRaw->{'female'};
+
 	my $vektorString = '';
 	foreach my $decade (sort keys %$decades)
 	{
 		my $num = $decades->{$decade};
-		$vektorString = $vektorString . '["' . $decade . '",' . $num . '],' 
+		$vektorString = $vektorString . '["' . $decade . '",' . $num . '],';
+	}
+
+	my $pvalueString = '<i>p</i>-values';
+	foreach my $pvalue (sort keys %$pvalues)
+	{
+		my $num = $pvalues->{$pvalue};
+		$pvalueString = $pvalueString . ' ' . $pvalue . ': ' . $num . ', ';
 	}
 	$vektorString =~ s/,$//;
+	$pvalueString =~ s/, $//;
+
 	$json =~ s/\{//g;
 	$json =~ s/\}//g;
 	$json =~ s/, "male/<br\/>"male/g;
@@ -54,7 +65,7 @@ if ($json)
 	my $arguments = $rawmale . " " . $rawfemale . " " . $allmale . " " . $allfemale;
 	my $proptestPvalue = getPropTestP($arguments, $scriptpath, $proptest);
 	my $fishertestPvalue = getFisherTestP($arguments, $scriptpath, $fishertest);
-	my $returnvalue = &printJavascript($vektorString, $json, $male, $female, $proptestPvalue, $fishertestPvalue);
+	my $returnvalue = &printJavascript($vektorString, $json, $male, $female, $proptestPvalue, $fishertestPvalue, $pvalueString);
 }
 else
 {
@@ -65,11 +76,11 @@ exit;
 
 sub printJavascript
 {
-	my ($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue) = @_;
+	my ($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring) = @_;
 
 	print $mycgi->header(-charset => 'utf-8');
 	print "<!DOCTYPE html\">\n";
-	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue);
+	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring);
 	print $htmlContent;
 }
 
@@ -146,12 +157,13 @@ sub getFisherTestP
 
 sub prepareHtml
 {
-	my ($vektor,  $myJSON, $male, $female, $ptestpval, $ftestpval) = @_;
+	my ($vektor,  $myJSON, $male, $female, $ptestpval, $ftestpval, $pvalueoutput) = @_;
 #print <<HTML;
 #$vektor = '1900';
 my $html = <<"HTMLEND";
 <html>
 <head>
+<title>CBFstats</title>
 <!--Load the AJAX API-->
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 <script type="text/javascript">
@@ -193,7 +205,7 @@ chart.draw(data, options);
 <body>
 <!--Div that will hold the pie chart-->
 <div id="chart_div"></div>
-<div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $ptestpval, fisher.test <i>p</i> $ftestpval)</p><p>$myJSON</p></div>
+<div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $ptestpval, fisher.test <i>p</i> $ftestpval)</p><p>$myJSON<br/>$pvalueoutput</p></div>
 </body>
 </html>
 HTMLEND
