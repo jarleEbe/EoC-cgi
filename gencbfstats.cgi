@@ -19,6 +19,22 @@ UTF8Writer = codecs.getwriter('utf8')
 sys.stdout = UTF8Writer(sys.stdout)
 
 # FUNCTIONS
+def getPRloglikelihood(args):
+
+    raysonPath = 'http://ucrel.lancs.ac.uk/cgi-bin/llsimple.pl?' + args #f1=511&f2=1848&t1=1578549&t2=16494070"
+    result = requests.get(raysonPath)
+    if result.status_code != 200:
+        raise Exception(result.status_code)
+    textcontent = result.text
+    content = textcontent.splitlines()
+    overunder = ''
+    for myline in content:
+        if re.search('Word', myline):
+            therow = re.sub(r'\s+', ' ', myline).strip()
+            thecols = therow.split(" ")
+            overunder = str(thecols[5])
+
+    return overunder
 
 # MAIN
 
@@ -57,6 +73,9 @@ allFemale = allData['female']
 female = (inputFemale / allFemale) * normSize
 femaleSpruce = "%.2f" % female
 
+#print("Content-Type: text/html")
+#print("\n\n")
+
 statsDict = dict()
 statsDict['male'] = str(maleSpruce)
 statsDict['noMaleWords'] = str(allMale)
@@ -72,13 +91,12 @@ for decade, words in inputData['Decades'].items():
         statsDict['Decades'][decade] = str(ResNormSpruce)
         noWords = alltotnoWords - totDecadeWords
         noHits = inputtotnoWords - words
-        arguments = str(words) + ' ' + str(totDecadeWords) + ' ' + str(noHits) + ' ' + str(noWords)
+        arguments = 'f1=' + str(words) + '&f2=' + str(noHits) + '&t1=' + str(totDecadeWords) + '&t2=' + str(noWords)
+        plusminus = getPRloglikelihood(arguments)
         arg1 = str(words)
         arg2 = str(totDecadeWords)
         arg3 = str(noHits)
         arg4 = str(noWords)
-        myCommand = Rscript + scriptpath + chi2test + ' ' + arguments
-        cmd = "ls"
         ps = subprocess.Popen(['Rscript', scriptpath+chi2test, arg1, arg2, arg3, arg4], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output, stderror = ps.communicate()
         outputlines = str(output)
@@ -89,7 +107,11 @@ for decade, words in inputData['Decades'].items():
                 pValue = line
                 pValue = re.sub(r'^(.*)p-value = ', '', pValue)
         if re.search('e', pValue):
-            pValue = '< 0.001'
+            pValue = '< 0.001' + plusminus
+        else:
+            pValueSpruce = float(pValue)
+            pValueSpruce = "%.3f" % pValueSpruce
+            pValue = str(pValueSpruce) + ' ' + plusminus
         statsDict['Pvalues'][decade] = pValue
 
 jsonString = json.dumps(statsDict, indent=4, ensure_ascii=False)

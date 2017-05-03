@@ -45,7 +45,7 @@ if ($json)
 		$vektorString = $vektorString . '["' . $decade . '",' . $num . '],';
 	}
 
-	my $pvalueString = '<i>p</i>-values';
+	my $pvalueString = '<i>X</i><sup>2</sup>, <i>p</i>-values: ';
 	foreach my $pvalue (sort keys %$pvalues)
 	{
 		my $num = $pvalues->{$pvalue};
@@ -62,10 +62,12 @@ if ($json)
 	$json =~ s/:/: /g;
 	$json =~ s/"//g;
 
+	my $totalcounts = &cbftotal;
+
 	my $arguments = $rawmale . " " . $rawfemale . " " . $allmale . " " . $allfemale;
 	my $proptestPvalue = getPropTestP($arguments, $scriptpath, $proptest);
 	my $fishertestPvalue = getFisherTestP($arguments, $scriptpath, $fishertest);
-	my $returnvalue = &printJavascript($vektorString, $json, $male, $female, $proptestPvalue, $fishertestPvalue, $pvalueString);
+	my $returnvalue = &printJavascript($vektorString, $json, $male, $female, $proptestPvalue, $fishertestPvalue, $pvalueString, $totalcounts);
 }
 else
 {
@@ -76,11 +78,11 @@ exit;
 
 sub printJavascript
 {
-	my ($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring) = @_;
+	my ($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring, $alldata) = @_;
 
 	print $mycgi->header(-charset => 'utf-8');
 	print "<!DOCTYPE html\">\n";
-	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring);
+	my $htmlContent = &prepareHtml($data, $jsonCopy, $msex, $fsex, $proppvalue, $fisherpvalue, $pstring, $alldata);
 	print $htmlContent;
 }
 
@@ -155,9 +157,53 @@ sub getFisherTestP
 	return $pvalue;
 }
 
+sub cbftotal
+{
+
+	open(JSONFILE, "cbf.json");
+	my @localfile = <JSONFILE>;
+	my $localjson = join(" ", @localfile);
+	my $data = decode_json($localjson);
+
+	my @result = ();
+	push(@result, "<hr/><p>");
+	
+	push(@result, "Total no. of words: ");
+	push(@result, $data->{'totnoWords'});
+	push(@result, "<br/>");
+
+	push(@result, "Total no. of texts: ");
+	push(@result, $data->{'noTexts'});
+	push(@result, "<br/>");
+
+	push(@result, "Total no. of words, male writers: ");
+	push(@result, $data->{'male'});
+	push(@result, "<br/>");
+
+	push(@result, "Total no. of words, female writers: ");
+	push(@result, $data->{'female'});
+	push(@result, "<br/>");
+
+	push(@result, "Total no. of words per decade: ");
+
+	my $decades = $data->{'Decades'};
+	foreach my $key (sort(keys(%$decades)))
+	{
+		my $lead = $key . ': ';
+		push(@result, $lead);
+		my $content = $decades->{$key} . ', ';
+		push(@result, $content);
+	}
+
+	push(@result, "</p>");
+	my $returnvalue = join(" ", @result);
+	return $returnvalue;
+
+}
+
 sub prepareHtml
 {
-	my ($vektor,  $myJSON, $male, $female, $ptestpval, $ftestpval, $pvalueoutput) = @_;
+	my ($vektor,  $myJSON, $male, $female, $ptestpval, $ftestpval, $pvalueoutput, $all) = @_;
 #print <<HTML;
 #$vektor = '1900';
 my $html = <<"HTMLEND";
@@ -205,7 +251,8 @@ chart.draw(data, options);
 <body>
 <!--Div that will hold the pie chart-->
 <div id="chart_div"></div>
-<div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $ptestpval, fisher.test <i>p</i> $ftestpval)</p><p>$myJSON<br/>$pvalueoutput</p></div>
+<div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $ptestpval, fisher.test <i>p</i> $ftestpval)</p>
+<p>$myJSON<br/>$pvalueoutput<br/>(- = underuse in decade / + = overuse in decade relative to rest of corpus, acc. Rayson's LL calc)</p><p>$all</p></div>
 </body>
 </html>
 HTMLEND
