@@ -57,6 +57,12 @@ my $female = 0;
 my $numberoftexts = 0;
 my $statsString = '';
 
+my %orig = ();
+my %empty = ();
+my $totnotexts = 0;
+
+$totnotexts = &readcbf_json();
+
 if ($searchstring)
 {
 	&print_header($searchstring);
@@ -123,8 +129,26 @@ if ($searchstring)
 	$statsString =~ s/, $//;
 	$statsString = $statsString . '}}';
 	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'> More statistics</a>";
-	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
+	print "<hr/>";
+	print "<table border='1' cellpadding='2' cellspacing='2'>";
+	print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td></tr>";
+	foreach my $key (sort(keys(%orig)))
+	{
+		my $sum = $orig{$key};
+		my $actualno = $empty{$key};
+		my $perht = 0.0;
+		print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
+		print "<td style='text-align:right'>$empty{$key}</td>";
+		if ($actualno > 0)
+		{
+			$perht = ($actualno / $sum) * 100000;
+			$perht = sprintf("%.1f", $perht);
+		}
+		print "<td style='text-align:right'>$perht</td></tr>";
+	}
+	print "</table>";
 }
 else
 {
@@ -296,6 +320,12 @@ sub build_output
 	foreach my $kline (@output)
 	{
 		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
+		if (exists($empty{$tid}))
+		{
+			my $ttemp = $empty{$tid};
+			$ttemp++;
+			$empty{$tid} = $ttemp;
+		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
 		if ($maxcontext == 1000)
 		{
@@ -337,4 +367,30 @@ sub blanks
 	$temp =~ s/, /,/g;
 
 	return $temp;
+}
+
+sub readcbf_json
+{
+
+	open(JSONFILE, "cbf.json");
+	my @content = <JSONFILE>;
+	close(JSONFILE);
+
+	my $jsonfromfile = join(" ", @content);
+	my $json_data = decode_json($jsonfromfile);
+
+#	my $male = $json_data->{'male'};
+#	my $female = $json_data->{'female'};
+#	my $nomaletexts = $json_data->{'noMaleTexts'};
+#	my $nofemaletexts = $json_data->{'noFemaleTexts'};
+	my $numberoftexts = $json_data->{'noTexts'};
+	my $textcodes = $json_data->{'Texts'};
+
+	foreach my $key (sort(keys(%$textcodes)))
+	{
+		$orig{$key} = $textcodes->{$key};
+		$empty{$key} = 0;
+	}
+
+	return $numberoftexts;
 }
