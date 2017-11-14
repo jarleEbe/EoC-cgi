@@ -57,8 +57,10 @@ my $female = 0;
 my $numberoftexts = 0;
 my $statsString = '';
 
-my %orig = ();
-my %empty = ();
+my %orig = (); #Text code
+my %empty = (); #Hits per text
+my %gender = (); #Text's author's gender
+my %tdecade = (); #Text's decade
 my $totnotexts = 0;
 
 $totnotexts = &readcbf_json();
@@ -133,7 +135,7 @@ if ($searchstring)
 	print $concordance;
 	print "<hr/>";
 	print "<table border='1' cellpadding='2' cellspacing='2'>";
-	print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td></tr>";
+	print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td></tr>";
 	foreach my $key (sort(keys(%orig)))
 	{
 		my $sum = $orig{$key};
@@ -146,7 +148,9 @@ if ($searchstring)
 			$perht = ($actualno / $sum) * 100000;
 			$perht = sprintf("%.1f", $perht);
 		}
-		print "<td style='text-align:right'>$perht</td></tr>";
+		print "<td style='text-align:right'>$perht</td>";
+		print "<td style='text-align:center'>$tdecade{$key}</td>";
+		print "<td style='text-align:center'>$gender{$key}</td></tr>";
 	}
 	print "</table>";
 }
@@ -388,7 +392,9 @@ sub readcbf_json
 
 	foreach my $key (sort(keys(%$textcodes)))
 	{
-		$orig{$key} = $textcodes->{$key};
+		$orig{$key} = $textcodes->{$key}->{'noWords'};
+		$gender{$key} = $textcodes->{$key}->{'Gender'};
+		$tdecade{$key} = $textcodes->{$key}->{'Decade'};
 		$empty{$key} = 0;
 	}
 

@@ -88,7 +88,7 @@ def simple_query(es, index_name, document_type, q, max_hits, filters):
 
     searchstring = ''
 #    q = re.sub(r'\*', r'([^\\\s.;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\()]*)', q)
-#    print(q)
+    print(q, end="<br/>")
     regexpchar = re.compile(r'[\.\*\+\?\[\{\(\|]')
     if re.search(regexpchar, q):
         searchstring = '{"from": 0, "size": ' + size + ', "query": {"bool": {"must": [ {"regexp": {"rawText": "' + q + '"}} ]' + theFilter + \
@@ -97,7 +97,7 @@ def simple_query(es, index_name, document_type, q, max_hits, filters):
         searchstring = '{"from": 0, "size": ' + size + ', "query": {"bool": {"must": [ {"match": {"rawText": "' + q + '"}} ]' + theFilter + \
             '}}}'
 
-#    print(searchstring)
+    print(searchstring, end="<br/>")
     data = json.dumps({})
     tempdict = json.dumps(searchstring)
     data = json.loads(tempdict)
@@ -217,16 +217,18 @@ query = query.strip()
 nonwordchar = '([^\\s.,;;:!<>_~/—–‘’“”`´\"\\?\\)\\(]*)'
 
 if re.search(" ", query):
+    result = complex_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
 #    if re.search(r'\w\*', query):
 #        query = re.sub(r'(\w)\*', ur'\1(.[^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
 #    if re.search(r' \*', query):
 #        query = re.sub(r' \*', ur' (.[^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
-    result = complex_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
     query = re.sub(r'\.\*', ur'([^\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
 else:
-#    query = re.sub(r'\*', ur'([^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
     result = simple_query(es, "cbf", "cbfraw", query, max_no_hits, filters)
+#    query = re.sub(r'\*', ur'([^\\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
     query = re.sub(r'\.\*', ur'([^\\s.,;;:!<>_~/—–‘’“”`´\"\\\?\\\)\\\(]*)', query)
+
+print(query, end="<br/>")
 
 parsed_data = json.dumps(result)
 sunit = json.loads(parsed_data)
@@ -235,6 +237,9 @@ result = dict()
 result['requestednoHits'] = max_no_hits
 result['searchstring'] = query
 result['numberofHits'] = sunit['hits']['total']
+
+
+print(result['numberofHits'], end="<br/>")
 
 scrollId = sunit['_scroll_id']
 
@@ -248,11 +253,12 @@ female = 0
 unknownsex = 0
 numberoftexts = {}
 decades = {}
-delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
+#delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
+delimiter = '([\\s,;:.<>!?_~/—‘’“”`´\"\\(\\)]+?)'
 query = re.sub(' ', unicode(delimiter), query)
 query = re.sub('_', ' ', query)
+print(query, end="<br/>")
 pattern = re.compile(unicode(query), flags=re.IGNORECASE|re.UNICODE)
-
 while sunit['hits']['hits']:
     for row in sunit['hits']['hits']:
         localDict = {}
