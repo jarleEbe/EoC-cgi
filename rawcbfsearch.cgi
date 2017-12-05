@@ -251,6 +251,7 @@ decades = {}
 delimiter = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)]+?)'
 query = re.sub(' ', unicode(delimiter), query)
 query = re.sub('_', ' ', query)
+query = '([\\s,;:.<>!?_~/—–‘’“”`´\"\\(\\)])' + query + "(\W|$)"
 pattern = re.compile(unicode(query), flags=re.IGNORECASE|re.UNICODE)
 
 while sunit['hits']['hits']:
@@ -264,13 +265,14 @@ while sunit['hits']['hits']:
         localDict['sunitId'] = row["_source"]["sunitId"]
         localDict['localId'] = row["_source"]["localId"]
         para = row["_source"]["rawText"]
-# Cheats by adding an extra blank in case hit is at end of line
+# Cheats by adding an extra blank in case hit is at beginning or end of line
+        para = ' ' + para
         para = para + ' '
         currentkey = row["_source"]["textId"]
         thisdecade = row["_source"]["decade"]
         if thisdecade == '':
             thisdecade = 'Undated'
-#            print(row["_source"]["textId"])
+            print(row["_source"]["textId"])
         if currentkey in numberoftexts:
             x = 1
         else:
@@ -287,6 +289,7 @@ while sunit['hits']['hits']:
         for c in para:
             temp = para[ind:len(para)]
             if re.match(pattern, temp):
+#                print(temp, "<br/>")
                 numberofmatches += 1
                 totalnumberofhits += 1
                 stringsofar = orig + '<b>' + temp
@@ -294,10 +297,12 @@ while sunit['hits']['hits']:
                 rest = para[ind:len(para)]
                 rest = re.sub(pattern, '', rest, 1)
                 endofqueryindex = len(para) - len(rest)
-            if ind == endofqueryindex:
+            if (ind + 1) == endofqueryindex:
                 orig = orig + '</b>'
             orig = orig + c
             ind += 1
+#        print(str(numberofmatches), "<br/>")
+#        print(orig, "<br/>")
         if numberofmatches > 1:
             for ind in range(0, numberofmatches):
                 temp = orig
