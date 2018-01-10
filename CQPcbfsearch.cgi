@@ -3,9 +3,9 @@
 #Ebeling, USIT, 26.01.2017.
 
 use strict;
-use IPC::Open2;
 use CGI;
 use CGI::Carp;
+use IPC::Open2;
 use LWP::Simple;
 use JSON;
 use Data::Dumper;
@@ -73,14 +73,98 @@ if ($searchstring)
 #	my $result = &searching($searchstring, $maxlines, $filters);
 	my ($numbhits, @cqpresult) = &cqp($searchstring);
     my $result = &cqptoJSON($searchstring, $maxlines, @cqpresult);
-    foreach my $hit (@cqpresult)
-    {
-        $hit =~ s/</&lt;/g;
-        $hit =~ s/>/&gt;/g;
-        print "$hit<br/>";
-    }
 
-    print $result;
+#    foreach my $hit (@cqpresult)
+#    {
+#        $hit =~ s/</&lt;/g;
+#        $hit =~ s/>/&gt;/g;
+#        print "$hit<br/>";
+#    }
+
+	my $json_data = decode_json($result);
+	my $reqnumberofhits = $json_data->{'requestednoHits'};
+	my $actualnumberofhits = $json_data->{'numberofHits'};
+
+	my $male = $json_data->{'male'};
+	my $female = $json_data->{'female'};
+	my $nomaletexts = $json_data->{'noMaleTexts'};
+	my $nofemaletexts = $json_data->{'noFemaleTexts'};
+	my $numberoftexts = $json_data->{'numberofTexts'};
+
+	my $numberofhits = $json_data->{'numberofHits'};
+	for (my $ind = 0; $ind < $numberofhits; $ind++)
+	{
+		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
+		$sunit = encode('utf-8', $sunit);
+		my $sex = $json_data->{'Hits'}->[$ind]->{'sunit'};
+		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
+		$source =~ s/\. /\./;
+		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
+		$numbhits++;
+#		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
+		$sunit =~ s/(.*)<([^>]+?)>(.*)/$1$2$3/i;
+		my $leftcontext = $1 || "";
+		if (length($leftcontext) > $maxcontext)
+		{
+			$leftcontext = reverse($leftcontext);
+			$leftcontext = substr($leftcontext, 0, $maxcontext);
+			$leftcontext = "&hellip;" . reverse($leftcontext);
+		}
+
+		my $keyword = $2 || "";
+		my $rightcontext = $3 || "";
+		if (length($rightcontext) > $maxcontext)
+		{
+			$rightcontext = substr($rightcontext, 0, $maxcontext) . "&hellip;";
+		}
+		my $link = $contextaction . $source;
+		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
+		$keyword =~ s/<\/b>/<\/a>/;
+
+		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
+	}
+	if ($sortkrit)
+	{
+		&sort_kwic;
+	}
+	
+	my $concordance = "";
+	($concordance, $numbhits) = &build_output($numbhits, $source_path);
+	$concordance = $tablestart . $concordance . $tableend;
+	my $decades = $json_data->{'Decades'};
+	my $decadesstring = '';
+	$statsString = '{"totnoWords":' . $numbhits . ', "male":' .$male . ', "female":' . $female . ', "Decades": {';
+	foreach my $key (sort(keys(%$decades)))
+	{
+		$statsString = $statsString . '"' . $key . '":' . $decades->{$key} . ", ";  
+		$decadesstring = $decadesstring . $key . ' : ' . $decades->{$key} . ', ';
+	}
+	$decadesstring =~ s/, $//;
+	$statsString =~ s/, $//;
+	$statsString = $statsString . '}}';
+	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'> More statistics</a>";
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
+	print $concordance;
+	print "<hr/>";
+	print "<table border='1' cellpadding='2' cellspacing='2'>";
+	print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td></tr>";
+	foreach my $key (sort(keys(%orig)))
+	{
+		my $sum = $orig{$key};
+		my $actualno = $empty{$key};
+		my $perht = 0.0;
+		print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
+		print "<td style='text-align:right'>$empty{$key}</td>";
+		if ($actualno > 0)
+		{
+			$perht = ($actualno / $sum) * 100000;
+			$perht = sprintf("%.1f", $perht);
+		}
+		print "<td style='text-align:right'>$perht</td>";
+		print "<td style='text-align:center'>$tdecade{$key}</td>";
+		print "<td style='text-align:center'>$gender{$key}</td></tr>";
+	}
+	print "</table>";
 }
 else
 {
@@ -89,13 +173,18 @@ else
 print $mycgi->end_html;
 exit;
 
-sub searching
-{
-	my ($query, $nohits, $filters) = @_;
+#depricated
+#sub searching
+#{
+#	my ($query, $nohits, $filters) = @_;
 
-    my $result = '';
-	return $result;
-}
+#	$query = decode('utf-8', $query);
+#	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
+#	my $result = get($url);
+#	die "Couldn't get it!" unless defined $result;
+#	$result = encode('utf-8', $result);
+#	return $result;
+#}
 
 sub print_header
 {
@@ -103,12 +192,12 @@ sub print_header
 	print "Content-Type: text/html; charset=utf-8\n\n";
 	print "<!DOCTYPE html>\n";
 	print "<html>\n";
-	print "<head><title>CBFCQPtest</title>\n";
+	print "<head><title>CQPcbfsearch</title>\n";
 	print "<link rel='stylesheet' type='text/css' href='$css_path/OMCsearch.css'/>\n";
 	print "<script src='$js_path/selectcorpus.js'></script>\n";
 	print "</head>\n";
 	print "<body>\n";
-	print "<form name='readcorpus' method='POST' action='$action/testcqp.cgi'>\n";
+	print "<form name='readcorpus' method='POST' action='$action/CQPcbfsearch.cgi'>\n";
 	print "<table align='center' width='789' border='0' cellpadding='0' cellspacing='0'>\n";
 	print "<tr bgcolor='#FFD112'><td>";
 	print "<img src='$general_path/ENPCbanner3.gif' width='450' height='25' border='0' alt='' usemap='#logomini_Map'/>";
@@ -352,7 +441,6 @@ sub cqp
 #    print $result;
     my @content = ();
     push(@content, $result);
-    my $index = 0;
     for (my $ind = 1; $ind++; $ind <= $numbhits)
     {
         chomp($result = <$out>);
@@ -400,6 +488,7 @@ sub cqptoJSON
 		my $decade = $cols[3];
 		my $sunit = $cols[4];
 		my $tidlid = $textid . '.' . $localid;
+		$sunit =~ s/\n//g;
 		$sunit =~ s/"/&#x0022;/g;
         $localJSON = $localJSON . '{';
         $localJSON = $localJSON . &addtoJSON("localId", $localid, "number");
@@ -444,6 +533,7 @@ sub cqptoJSON
 	$sums = $sums . '"numberofHits": ' . '"' . $numbhits . '", ';
 	$sums = $sums . '"noMaleTexts": ' . '"' . '0' . '", ';
 	$sums = $sums . '"NoFemaleTexts": ' . '"' . '0' . '", ';
+	$sums = $sums . '"requestednoHits": ' . $numbreqhits . ', ';
 	$sums = $sums . '"male": ' . '"' . $male . '", ';
 	$sums = $sums . '"Decades": {' . $decadesstring . '},';
 	$sums = $sums . '"numberofTexts": ' . '"' . $numbtexts . '"';
