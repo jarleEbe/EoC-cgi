@@ -20,7 +20,7 @@ my $css_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
 my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
-my $source_path = "http://127.0.0.1/hf/ilos/cbf/source";
+my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
 my $js_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
 my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
 
@@ -29,20 +29,10 @@ my @fields = $mycgi->param;
 
 my $searchstring = $mycgi->param('searchstring') || "";
 my $decade = $mycgi->param('decade') || "";
-my $sex = $mycgi->param('sex') || "";
+my $gender = $mycgi->param('gender') || "";
 my $sortkrit = $mycgi->param('sort') || "";
 my $maxcontext = $mycgi->param('maxcontext') || 1000;
 my $maxshow = $mycgi->param('maxshow') || 1000000;
-
-my $filters = "";
-if (defined($sex) && $sex ne '')
-{
-	$filters = "sex=" . lc($sex);
-}
-if (defined($decade) && $decade ne '')
-{
-	$filters = $filters . "decade=" . $decade;
-}
 
 my @contextvalues = ();
 my %contextlabels = ();
@@ -60,7 +50,7 @@ my $statsString = '';
 
 my %orig = (); #Text code
 my %empty = (); #Hits per text
-my %gender = (); #Text's author's gender
+my %tgender = (); #Text's author's gender
 my %tdecade = (); #Text's decade
 my $totnotexts = 0;
 
@@ -71,7 +61,7 @@ if ($searchstring)
 	&print_header($searchstring);
 
 #	my $result = &searching($searchstring, $maxlines, $filters);
-	my ($numbhits, @cqpresult) = &cqp($searchstring);
+	my ($numbhits, @cqpresult) = &cqp($searchstring, $decade, $gender);
     my $result = &cqptoJSON($searchstring, $maxlines, @cqpresult);
 
 #    foreach my $hit (@cqpresult)
@@ -96,7 +86,7 @@ if ($searchstring)
 	{
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		$sunit = encode('utf-8', $sunit);
-		my $sex = $json_data->{'Hits'}->[$ind]->{'sunit'};
+		my $gender = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		$source =~ s/\. /\./;
 		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
@@ -162,7 +152,7 @@ if ($searchstring)
 		}
 		print "<td style='text-align:right'>$perht</td>";
 		print "<td style='text-align:center'>$tdecade{$key}</td>";
-		print "<td style='text-align:center'>$gender{$key}</td></tr>";
+		print "<td style='text-align:center'>$tgender{$key}</td></tr>";
 	}
 	print "</table>";
 }
@@ -211,8 +201,8 @@ sub print_header
 	print "</p></td>\n";
 	print "<td align='right'><p class='marg2'>Decade \n";
 	print $mycgi->popup_menu(-name=>'decade', -values=>['', '1900', '1910', '1920', '1930', '1940', '1950', '1960', '1970', '1980', '1990', '2000', '2010']);
-	print "&nbsp;Sex";
-	print $mycgi->popup_menu(-name=>'sex', -values=>['', 'Female', 'Male']);
+	print "&nbsp;Gender of author ";
+	print $mycgi->popup_menu(-name=>'gender', -values=>['', 'female', 'male']);
 	print "</p></td></tr>\n";
 	print "<tr><td align='right'><p class='marg2'>\n";
 	print "Sort concordance by ";
@@ -406,7 +396,7 @@ sub readcbf_json
 	foreach my $key (sort(keys(%$textcodes)))
 	{
 		$orig{$key} = $textcodes->{$key}->{'noWords'};
-		$gender{$key} = $textcodes->{$key}->{'Gender'};
+		$tgender{$key} = $textcodes->{$key}->{'Gender'};
 		$tdecade{$key} = $textcodes->{$key}->{'Decade'};
 		$empty{$key} = 0;
 	}
@@ -417,7 +407,7 @@ sub readcbf_json
 sub cqp
 {
 
-    my ($search) = @_;
+    my ($search, $decennium, $gofA) = @_;
 
     my $pid = open2 my $out, my $in, "cqp -c -D CBF" or die "Could not open cqp";
 
@@ -428,7 +418,31 @@ sub cqp
     print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
 #    print $in "set PrintStructures 'text_gender';\n";
 #    print $in "set PrintStructures 'text_decade';\n";
-    print $in "sok = [word='$search' %cd];\n";
+
+	my $matching = '';
+	if ($gofA)
+	{
+		$matching = ' :: match.text_gender = "' . $gofA . '"';
+	}
+	if ($decennium)
+	{
+		$matching = $matching . ' & match.text_decade = "' . $decennium . '"';
+	}
+
+	my $sokstring = '';
+	if ($search =~ / /)
+	{
+		$search = &buildSearchString($search);
+		$sokstring = $search . $matching;
+	}
+	else
+	{
+		$sokstring = '[word="' . $search . '" %cd]' . $matching;
+	}
+
+    print "$sokstring<br/>";
+#    print $in "sok = [word='serendipity' %cd];\n";
+    print $in "sok = $sokstring;\n";
     print $in "size sok;\n";
     my $numbhits = <$out>;
     #print "$numbhits";
@@ -463,6 +477,19 @@ sub cqp
     return $numbhits, @content;
 }
 
+sub buildSearchString($search)
+{
+	my ($inputstring) = @_;
+
+	my @strings = split/ /, $inputstring;
+	my $resturnstring = '';
+	foreach my $ss (@strings)
+	{
+		$resturnstring = $resturnstring . '[word="' . $ss . '" %cd] '
+	}
+
+	return $resturnstring;
+}
 
 sub cqptoJSON
 {
