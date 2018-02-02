@@ -16,12 +16,14 @@ use HTML::Entities;
 binmode STDIN, ":utf8";
 
 # Nabu
-my $css_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
-my $general_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
+my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
+my $general_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
+#itfds-utv01
+#my $action = "http://itfds-utv01.uio.no/cgi-bin/cbf";
 my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
 my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
-my $js_path = "https://nabu.usit.uio.no/hf/ilos/enpc2";
+my $js_path = "https://nabu.usit.uio.no/hf/cbf/ilos/imagecssjs";
 my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
 
 my $mycgi = new CGI;
@@ -31,13 +33,15 @@ my $searchstring = $mycgi->param('searchstring') || "";
 my $decade = $mycgi->param('decade') || "";
 my $gender = $mycgi->param('gender') || "";
 my $sortkrit = $mycgi->param('sort') || "";
-my $maxcontext = $mycgi->param('maxcontext') || 1000;
+my $maxcontext = $mycgi->param('maxcontext') || 59;
 my $maxshow = $mycgi->param('maxshow') || 1000000;
 
 my @contextvalues = ();
 my %contextlabels = ();
 
-my $maxlines = '5000';
+#NB! Hva gjør denne?
+my $maxlines = 15000; #Max number of hits to display
+my $absolutemax = 500000; #Max number og hits counted
 my $tablestart = "<table align='center' border='0' cellpadding='0' cellspacing='0' width='98%'>\n";
 my $tableend = "</table>\n";
 
@@ -47,6 +51,7 @@ my $male = 0;
 my $female = 0;
 my $numberoftexts = 0;
 my $statsString = '';
+my $cqpsearch = '';
 
 my %orig = (); #Text code
 my %empty = (); #Hits per text
@@ -60,8 +65,17 @@ if ($searchstring)
 {
 	&print_header($searchstring);
 
-#	my $result = &searching($searchstring, $maxlines, $filters);
-	my ($numbhits, @cqpresult) = &cqp($searchstring, $decade, $gender);
+	my $numbhits = 0;
+	my $totalhits = 0;
+	my @cqpresult = ();
+	if ($searchstring =~ /\[/)
+	{
+#		($numbhits, $totalhits, @cqpresult) = &cqpraw($searchstring, $decade, $gender, $sortkrit, $maxcontext);
+	}
+	else
+	{
+		($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $maxlines, $absolutemax);	
+	}
     my $result = &cqptoJSON($searchstring, $maxlines, @cqpresult);
 
 #    foreach my $hit (@cqpresult)
@@ -71,6 +85,7 @@ if ($searchstring)
 #        print "$hit<br/>";
 #    }
 
+	$result = encode('utf-8', $result);
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
 	my $actualnumberofhits = $json_data->{'numberofHits'};
@@ -85,12 +100,12 @@ if ($searchstring)
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
-		$sunit = encode('utf-8', $sunit);
+#		$sunit = encode('utf-8', $sunit);
 		my $gender = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		$source =~ s/\. /\./;
 		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
-		$numbhits++;
+#		$numbhits++;
 #		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
 		$sunit =~ s/(.*)<([^>]+?)>(.*)/$1$2$3/i;
 		my $leftcontext = $1 || "";
@@ -108,18 +123,29 @@ if ($searchstring)
 			$rightcontext = substr($rightcontext, 0, $maxcontext) . "&hellip;";
 		}
 		my $link = $contextaction . $source;
-		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
-		$keyword =~ s/<\/b>/<\/a>/;
-
+#		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
+#		$keyword =~ s/<\/b>/<\/a>/;
+		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold" href="$link">' . $keyword . '</a>';
 		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
 	}
-	if ($sortkrit)
+	if ($sortkrit eq 'source')
 	{
 		&sort_kwic;
 	}
 	
 	my $concordance = "";
-	($concordance, $numbhits) = &build_output($numbhits, $source_path);
+	my $nbmessage = '';
+	if ($numbhits > $maxlines)
+	{
+		&build_simple_output();
+		$nbmessage = "Tot. number of hits exceeds $maxlines. Displays counts only.";
+	}
+	else
+	{
+		($concordance, $numbhits) = &build_output($numbhits, $source_path);
+	}
+#	&build_simple_output();
+	print "<p>$nbmessage</p>";
 	$concordance = $tablestart . $concordance . $tableend;
 	my $decades = $json_data->{'Decades'};
 	my $decadesstring = '';
@@ -133,6 +159,7 @@ if ($searchstring)
 	$statsString =~ s/, $//;
 	$statsString = $statsString . '}}';
 	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'> More statistics</a>";
+#	my $statsLink = '';
 	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 	print "<hr/>";
@@ -155,6 +182,7 @@ if ($searchstring)
 		print "<td style='text-align:center'>$tgender{$key}</td></tr>";
 	}
 	print "</table>";
+	print "<p>The search string sent to cqp: $cqpsearch</p>";
 }
 else
 {
@@ -188,15 +216,23 @@ sub print_header
 	print "</head>\n";
 	print "<body>\n";
 	print "<form name='readcorpus' method='POST' action='$action/CQPcbfsearch.cgi'>\n";
-	print "<table align='center' width='789' border='0' cellpadding='0' cellspacing='0'>\n";
-	print "<tr bgcolor='#FFD112'><td>";
-	print "<img src='$general_path/ENPCbanner3.gif' width='450' height='25' border='0' alt='' usemap='#logomini_Map'/>";
-	print "<map name='logomini_Map'>";
-	print "<area shap='rect' title='UiO' COORDS='0,0,75,31' HREF='http://www.uio.no/' target='_self'/>";
+	print "<table align='center' width='789' border='0' style='padding:0; border-spacing:0'>\n";
+	print "<tr bgcolor='#000000'>\n";
+#	print "<td style='text-align:left; vertical-align:bottom'>";
+#	print "<img src='$general_path/cbf_blur3.png' style='border:0; vertical-align:center' alt='banner'/>";
+#	print "</td>\n";
+	print "<td style='text-align:left; color:white; font-size:16px; font-weight:bold'>";
+	print "<img src='$general_path/cbf_blur3.png' style='border:0; vertical-align:middle' alt='banner' usemap='#cbfhelp_map'/>";
+	print "<map name='cbfhelp_map'>";
+	print "<area shap='rect' title='CBF help' coords='0,0,75,28' href='http://nabu.usit.uio.no/hf/ilos/cbf/cbfhelp.html' target='_self'/>";
+	print "&nbsp;&nbsp;<span style='vertical-align:middle'>Corpus of British Fiction</span></map></td>\n";
+	print "<td style='text-align:right'><img src='$general_path/uiocbfbannersmall.png' border='0' alt='banner' usemap='#logomini_map'/>";
+	print "<map name='logomini_map'>";
+	print "<area shap='rect' title='UiO' coords='0,0,195,31' href='http://www.uio.no/' target='_self'/>";
 	print "</map></td>\n";
-	print "<td align='right'><a href='$general_path/search_help.html'>Search help</a></td></tr>\n";
-	print "<tr><td align='right'><p class='marg2'>\n";
-	print "<input name='searchstring' size='40' value='$ss'/>";
+	print "</tr>\n";
+	print "<tr><td align='left'><p class='marg2'>\n";
+	print "<input name='searchstring' size='55' value='$ss'/>";
 	print "<input type='submit' value='Search'>";
 	print "</p></td>\n";
 	print "<td align='right'><p class='marg2'>Decade \n";
@@ -206,10 +242,10 @@ sub print_header
 	print "</p></td></tr>\n";
 	print "<tr><td align='right'><p class='marg2'>\n";
 	print "Sort concordance by ";
-	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', '']);
+	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', 'random', '']);
 	print "</p></td><td align='right'><p class='marg2'>";
-	@contextvalues = ('59', '1000', '2000');
-	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab');
+	@contextvalues = ('59', '1000', '2000', '1500');
+	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5');
 	print "Choose kwic or s-unit layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
 	print "</p></td></tr>\n";
@@ -227,36 +263,7 @@ sub sort_kwic
 	my @matrix = ();
 	foreach my $kline (@output)
 	{
-		if ($sortkrit eq 'right word')
-		{
-			$krit = &get_rightkrit($kline);	
-			my $krit2 = &get_keykrit($kline);
-			$krit2 =~ s/<[^>]+?>//;
-			$krit = "$krit$pad$krit2";
-		}
-		elsif ($sortkrit eq 'left word')
-		{
-			$krit = &get_leftkrit($kline);	
-			my $krit2 = &get_keykrit($kline);
-			$krit2 =~ s/<[^>]+?>//;
-			$krit = "$krit$pad$krit2";
-		}
-		elsif ($sortkrit eq 'keyword')
-		{
-			$krit = &get_keykrit($kline);
-			my $krit2 = &get_rightkrit($kline);
-			$krit =~ s/<[^>]+?>//;
-
-			if (defined($krit2))
-			{
-				$krit = "$krit$pad$krit2";
-			}
-			else
-			{
-				$krit = "$krit$pad";
-			}
-		}
-		elsif ($sortkrit eq 'source')
+		if ($sortkrit eq 'source')
 		{
 			$krit = &get_sourcekrit($kline);
 			my $krit2 = &get_keykrit($kline);
@@ -276,36 +283,10 @@ sub sort_kwic
 	}
 }
 
-
-sub get_rightkrit
-{
-	my $temp = shift(@_);
-	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
-	$right =~ s/&mdash;//g;
-	$right =~ s/^\W+//;
-	my @krits = split/ /, $right;
-	
-	return $krits[0];
-}
-
-sub get_leftkrit
-{
-	my $temp = shift(@_);
-	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
-	$left =~ s/&mdash;//g;
-	$left = reverse($left);
-	$left =~ s/^\W+//;
-	my @krits = split/ /, $left;
-	my $lfk = reverse($krits[0]);
-	$lfk =~ s/^\W+//;
-	return $lfk;
-}
-
 sub get_keykrit
 {
 	my $temp = shift(@_);
 	my ($left, $key, $right, $source, $tid) = split/\t/, $temp;
-	return $key;
 }
 
 sub get_sourcekrit
@@ -334,9 +315,9 @@ sub build_output
 			$empty{$tid} = $ttemp;
 		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
-		if ($maxcontext == 1000)
+		if ($maxcontext == 1000 || $maxcontext == 1500)
 		{
-			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $newsource . "]</td></tr><tr><td align='left'></td></tr>\n";
+			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $newsource . "]<br/><br/></td></tr><tr><td align='left'></td></tr>\n";
 		}
 		elsif ($maxcontext == 59)
 		{
@@ -346,13 +327,29 @@ sub build_output
 		{
 		    $left  =~ s/<([^>]+?)>//g;
 		    $right =~ s/<([^>]+?)>//g;
-		    $key =~   s/<([^>]+?)>//g;
+		    $key =~ s/<([^>]+?)>//g;
 		    $source =~ s/<([^>]+?)>//g;
 		    $left =~ s/^ //;
-		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $newsource . "\n";
+		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $source . "\n";
 		}
 	}
 	return $kwic_line, $nh;
+}
+
+
+sub build_simple_output
+{
+	foreach my $kline (@output)
+	{
+		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
+		if (exists($empty{$tid}))
+		{
+			my $ttemp = $empty{$tid};
+			$ttemp++;
+			$empty{$tid} = $ttemp;
+		}
+	}
+	return;
 }
 
 sub skrell
@@ -404,21 +401,105 @@ sub readcbf_json
 	return $numberoftexts;
 }
 
+sub cqpraw
+{
+
+    my ($search, $decennium, $gofA, $skriterium, $display) = @_;
+
+    print "$search<br/>";
+	$search =~ s/´/'/g;
+	$search =~ s/`/'/g;
+
+    my $pid = open2 my $out, my $in, "cqp -c -D CBF" or die "Could not open cqp";
+#itfds-utv01
+#    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
+
+    my $opened = <$out>;
+    print $in "set Context 59;\n";
+    print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
+
+    print "$search<br/>";
+
+    print $in "sok = $search;\n";
+    print $in "size sok;\n";
+    my $numbhits = <$out>;
+    print $in "cat sok;\n";
+
+    my $result;
+    while (! ($result = <$out>))
+    {
+    }
+    my @content = ();
+    push(@content, $result);
+    for (my $ind = 1; $ind++; $ind <= $numbhits)
+    {
+        chomp($result = <$out>);
+        push(@content, $result);
+        $result = '';
+        if ($ind >= $numbhits)
+        {
+            last;
+        }
+    }
+
+    print $in "exit;\n";
+    close($in);
+    close($out);
+
+    waitpid($pid, 0);
+
+    return $numbhits, @content;
+}
+
+
 sub cqp
 {
 
-    my ($search, $decennium, $gofA) = @_;
+    my ($search, $decennium, $gofA, $skriterium, $display, $maxtodisplay, $maxtocount) = @_;
 
     my $pid = open2 my $out, my $in, "cqp -c -D CBF" or die "Could not open cqp";
+#itfds-utv01
+#    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
 
     my $opened = <$out>;
     #print "$opened";
     #print $in "set AutoShow on;\n";
-    print $in "set Context 59;\n";
-    print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
-#    print $in "set PrintStructures 'text_gender';\n";
-#    print $in "set PrintStructures 'text_decade';\n";
 
+#Default KWIC context and what to output
+	if ($display eq '1000')
+	{
+   		print $in "set Context 1 s;\n";
+	}
+	elsif ($display eq '1500')
+	{
+    	print $in "set Context 5 s;\n"; 	
+	}
+	elsif ($display eq '59')
+	{
+    	print $in "set Context 59;\n"; 	
+	}
+	elsif ($display eq '2000')
+	{
+    	print $in "set Context 100;\n";		
+	}
+
+    print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
+#print "$search<br/>";
+
+
+#How to set sentenece view (KWIC is default)
+#       print $in "set Context s;\n";
+
+#How to show <s> ... </s>
+#       print $in "show +s;\n";
+
+#How to show/hide pos and lemma info
+#       print $in "show +pos +lemma;\n"; #show
+#       print $in "show -pos -lemma;\n"; #(hide)
+
+
+#Add filters gender and/ or (one) decade
+#	print "$search<br/>";
 	my $matching = '';
 	if ($gofA)
 	{
@@ -430,30 +511,90 @@ sub cqp
 	}
 
 	my $sokstring = '';
-	if ($search =~ / /)
-	{
-		$search = &buildSearchString($search);
-		$sokstring = $search . $matching;
-	}
-	else
-	{
-		$sokstring = '[word="' . $search . '" %cd]' . $matching;
-	}
+	$sokstring = &buildSearchString($search);
+#	my $pos = '';
+#	if ($search =~ / /)
+#	{
+#		$search = &buildSearchString($search);
+#		$sokstring = $search; # . $matching;
+#	}
+#	else
+#	{
+#		if ($search !~ /[a-z]/)
+#		{
+#			$search = lc($search);
+#			$sokstring = '[lemma="' . $search . '" %d]'; # . $matching;
+#		}
+#		else
+#		{
+#			if ($search =~ /_/)
+#			{
+#				($search, $pos) = split/_/, $search;
+#				$pos = ' & pos="' . $pos . '"';
+#			}
+#			$sokstring = $sokstring . '[word="' . $search . '" %cd' . $pos . ']';
+#			$sokstring = '[word="' . $search . '" %cd]'; # . $matching;
+#		}
+#	}
 
-    print "$sokstring<br/>";
+	$sokstring = $sokstring . $matching;
+#    print "$sokstring<br/>";
+#return;
 #    print $in "sok = [word='serendipity' %cd];\n";
     print $in "sok = $sokstring;\n";
     print $in "size sok;\n";
     my $numbhits = <$out>;
-    #print "$numbhits";
-    print $in "cat sok;\n";
+
+    my @content = ();
+	my $totalnumbhits = 0;
+	if ($numbhits == 0)
+	{
+    	print $in "exit;\n";
+    	close($in);
+    	close($out);
+
+    	waitpid($pid, 0);
+
+    	return $numbhits, @content;
+	}
+
+	$totalnumbhits = $numbhits;
+
+#Sorting/Reducing
+	if ($numbhits > $maxtocount)
+	{
+		print $in "reduce sok to 500000;\n";
+    	print $in "size sok;\n";
+		$numbhits = <$out>;
+	}
+	else
+	{
+		if ($skriterium eq 'right word')
+		{
+			print $in "sort by word %cd on matchend[1] .. matchend[42];\n";
+		}
+		elsif ($skriterium eq 'left word')
+		{
+			print $in "sort by word %cd on matchend[-1] .. matchend[-42];\n";
+		}
+		elsif ($skriterium eq 'random')
+		{
+			print $in "sort sok randomize;\n";
+		}
+		else
+		{
+			print $in "sort by word %cd on matchend[0] .. matchend[42];\n";
+		}
+	}
+
+    print $in "cat;\n";
 
     my $result;
     while (! ($result = <$out>))
     {
     }
 #    print $result;
-    my @content = ();
+    @content = ();
     push(@content, $result);
     for (my $ind = 1; $ind++; $ind <= $numbhits)
     {
@@ -474,18 +615,48 @@ sub cqp
 
     waitpid($pid, 0);
 
-    return $numbhits, @content;
+    return $numbhits, $totalnumbhits, $sokstring, @content;
 }
 
-sub buildSearchString($search)
+sub buildSearchString
 {
 	my ($inputstring) = @_;
 
 	my @strings = split/ /, $inputstring;
+#	if ($#strings == 0)
+#	{
+#		push(@strings, $inputstring);
+#	}
+
 	my $resturnstring = '';
+	my $pos = '';
 	foreach my $ss (@strings)
 	{
-		$resturnstring = $resturnstring . '[word="' . $ss . '" %cd] '
+		$pos = '';
+		if ($ss =~ /^_/)
+		{
+			$ss =~ s/_//;
+			$resturnstring = $resturnstring . '[pos="' . $ss . '"]';
+		}
+		elsif ($ss !~ /[a-z]/)
+		{
+			if ($ss =~ /_/)
+			{
+				($ss, $pos) = split/_/, $ss;
+				$pos = ' & pos="' . $pos . '"';
+			}
+			$ss = lc($ss);
+			$resturnstring = $resturnstring . '[lemma="' . $ss . '" %d' . $pos . ']';
+		}
+		else
+		{
+			if ($ss =~ /_/)
+			{
+				($ss, $pos) = split/_/, $ss;
+				$pos = ' & pos="' . $pos . '"';
+			}
+			$resturnstring = $resturnstring . '[word="' . $ss . '" %cd' . $pos . ']';
+		}
 	}
 
 	return $resturnstring;
@@ -501,9 +672,12 @@ sub cqptoJSON
     my $localJSON = '';
 	my $male = 0;
 	my $female = 0;
+	my $nofemaletexts = 0;
+	my $nomaletexts = 0;
 	my $numbtexts = 0;
 	my $numbhits = 0;
 	my %decades = ();
+	my %textids = ();
     foreach my $hitsrow (@hitsarr)
     {
 		$numbhits++;
@@ -517,15 +691,24 @@ sub cqptoJSON
 		my $tidlid = $textid . '.' . $localid;
 		$sunit =~ s/\n//g;
 		$sunit =~ s/"/&#x0022;/g;
+		$sunit =~ s/\\ \//\\\//g;
         $localJSON = $localJSON . '{';
         $localJSON = $localJSON . &addtoJSON("localId", $localid, "number");
         $localJSON = $localJSON . &addtoJSON("textId", $textid, "text");
         $localJSON = $localJSON . &addtoJSON("Sex", $gender, "text");
         $localJSON = $localJSON . &addtoJSON("Decade", $decade, "text");
-        $localJSON = $localJSON . &addtoJSON("sunit", $sunit, "text");
+		if ($#hitsarr > $numbreqhits)
+		{
+	        $localJSON = $localJSON . &addtoJSON("sunit", "", "text");
+		}
+		else
+		{
+        	$localJSON = $localJSON . &addtoJSON("sunit", $sunit, "text");
+		}
         $localJSON = $localJSON . &addtoJSON("sunitId", $tidlid, "text");
         $localJSON =~ s/, $//;
         $localJSON = $localJSON . '},';
+
 		if ($gender eq 'male')
 		{
 			$male++;
@@ -534,6 +717,7 @@ sub cqptoJSON
 		{
 			$female++;
 		}
+
 		if (exists($decades{$decade}))
 		{
 			my $temp = $decades{$decade};
@@ -544,22 +728,39 @@ sub cqptoJSON
 		{
 			$decades{$decade} = 1;
 		}
+
+		if (exists($textids{$textid}))
+		{
+
+		}
+		else
+		{
+			$textids{$textid} = $gender;
+			if ($gender eq 'male')
+			{
+				$nomaletexts++;
+			}
+			elsif ($gender eq 'female')
+			{
+				$nofemaletexts++;
+			}
+		}
     }
 
     $localJSON =~ s/,$//;
 	my $decadesstring = '';
 	foreach my $key (sort(keys(%decades)))
 	{
-		$numbtexts++;
 		$decadesstring = $decadesstring . '"' . $key . '": ' . $decades{$key} . ', ';
 	}
     $decadesstring =~ s/, $//;
 
+	$numbtexts = keys(%textids);
 	my $sums = '"searchstring": ' . '"' . $thesearch . '", ';
 	$sums = $sums . '"female": ' . '"' . $female . '", ';
 	$sums = $sums . '"numberofHits": ' . '"' . $numbhits . '", ';
-	$sums = $sums . '"noMaleTexts": ' . '"' . '0' . '", ';
-	$sums = $sums . '"NoFemaleTexts": ' . '"' . '0' . '", ';
+	$sums = $sums . '"noMaleTexts": ' . '"' . $nomaletexts . '", ';
+	$sums = $sums . '"noFemaleTexts": ' . '"' . $nofemaletexts . '", ';
 	$sums = $sums . '"requestednoHits": ' . $numbreqhits . ', ';
 	$sums = $sums . '"male": ' . '"' . $male . '", ';
 	$sums = $sums . '"Decades": {' . $decadesstring . '},';
@@ -567,7 +768,9 @@ sub cqptoJSON
 
 #Counts in here
     $allhits = $allhits . $localJSON . '], ' . $sums . '}';
-        
+
+#print "$numbhits : $numbtexts<br/>";
+
     return $allhits;
 }
 
