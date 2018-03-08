@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#Ebeling, USIT, 26.01.2017.
+#Ebeling, USIT, 19.02.2018.
 
 use strict;
 use CGI;
@@ -25,6 +25,8 @@ my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
 my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
 my $js_path = "https://nabu.usit.uio.no/hf/cbf/ilos/imagecssjs";
 my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
+#itfds-utv01
+#my $stats_path = "http://itfds-utv01.uio.no/cgi-bin/cbf/CBFstats.cgi?json=";
 
 my $mycgi = new CGI;
 my @fields = $mycgi->param;
@@ -39,9 +41,9 @@ my $maxshow = $mycgi->param('maxshow') || 1000000;
 my @contextvalues = ();
 my %contextlabels = ();
 
-#NB! Hva gjør denne?
+#NB! Constants
 my $maxlines = 15000; #Max number of hits to display
-my $absolutemax = 500000; #Max number og hits counted
+my $absolutemax = 250000; #Max number og hits counted
 my $tablestart = "<table align='center' border='0' cellpadding='0' cellspacing='0' width='98%'>\n";
 my $tableend = "</table>\n";
 
@@ -57,6 +59,7 @@ my %orig = (); #Text code
 my %empty = (); #Hits per text
 my %tgender = (); #Text's author's gender
 my %tdecade = (); #Text's decade
+my %sdecades = (); #The decades to include in search
 my $totnotexts = 0;
 
 $totnotexts = &readcbf_json();
@@ -68,22 +71,42 @@ if ($searchstring)
 	my $numbhits = 0;
 	my $totalhits = 0;
 	my @cqpresult = ();
-	if ($searchstring =~ /\[/)
-	{
-#		($numbhits, $totalhits, @cqpresult) = &cqpraw($searchstring, $decade, $gender, $sortkrit, $maxcontext);
-	}
-	else
-	{
-		($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $maxlines, $absolutemax);	
-	}
+
+    if ($decade eq '00-30')
+    {
+			$sdecades{"1900"} = "1900";
+			$sdecades{"1910"} = "1910";
+			$sdecades{"1920"} = "1920";
+			$sdecades{"1930"} = "1930";
+    }
+    elsif ($decade eq '40-70')
+    {
+			$sdecades{"1940"} = "1940";
+			$sdecades{"1950"} = "1950";
+			$sdecades{"1960"} = "1960";
+			$sdecades{"1970"} = "1970";
+    }
+    elsif ($decade eq '80-10')
+    {
+			$sdecades{"1980"} = "1980";
+			$sdecades{"1990"} = "1990";
+			$sdecades{"2000"} = "2000";
+			$sdecades{"2010"} = "2010";
+    }
+    else
+    {
+			$sdecades{$decade} = $decade;
+    }
+
+
+#	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+#	print "$min:$sec<br/>";
+
+	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $maxlines, $absolutemax);	
     my $result = &cqptoJSON($searchstring, $maxlines, @cqpresult);
 
-#    foreach my $hit (@cqpresult)
-#    {
-#        $hit =~ s/</&lt;/g;
-#        $hit =~ s/>/&gt;/g;
-#        print "$hit<br/>";
-#    }
+#	($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+#	print "$min:$sec";
 
 	$result = encode('utf-8', $result);
 	my $json_data = decode_json($result);
@@ -95,7 +118,6 @@ if ($searchstring)
 	my $nomaletexts = $json_data->{'noMaleTexts'};
 	my $nofemaletexts = $json_data->{'noFemaleTexts'};
 	my $numberoftexts = $json_data->{'numberofTexts'};
-
 	my $numberofhits = $json_data->{'numberofHits'};
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
@@ -125,7 +147,8 @@ if ($searchstring)
 		my $link = $contextaction . $source;
 #		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
 #		$keyword =~ s/<\/b>/<\/a>/;
-		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold" href="$link">' . $keyword . '</a>';
+#		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold" href="$link">' . $keyword . '</a>';
+		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold">' . $keyword . '</a>';
 		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
 	}
 	if ($sortkrit eq 'source')
@@ -138,13 +161,16 @@ if ($searchstring)
 	if ($numbhits > $maxlines)
 	{
 		&build_simple_output();
-		$nbmessage = "Tot. number of hits exceeds $maxlines. Displays counts only.";
+		$nbmessage = "No. of hits exceeds $maxlines. Displays counts only.";
+		if ($numbhits == $absolutemax)
+		{
+		    $nbmessage = $nbmessage . "<br/>Tot. no. of hits exceeds $absolutemax. Result set randomised and reduced to $absolutemax.";
+		}
 	}
 	else
 	{
 		($concordance, $numbhits) = &build_output($numbhits, $source_path);
 	}
-#	&build_simple_output();
 	print "<p>$nbmessage</p>";
 	$concordance = $tablestart . $concordance . $tableend;
 	my $decades = $json_data->{'Decades'};
@@ -163,25 +189,64 @@ if ($searchstring)
 	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 	print "<hr/>";
-	print "<table border='1' cellpadding='2' cellspacing='2'>";
-	print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td></tr>";
-	foreach my $key (sort(keys(%orig)))
+	if ($maxcontext != 2000)
 	{
-		my $sum = $orig{$key};
-		my $actualno = $empty{$key};
-		my $perht = 0.0;
-		print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
-		print "<td style='text-align:right'>$empty{$key}</td>";
-		if ($actualno > 0)
+		print "<table border='1' cellpadding='2' cellspacing='2'>";
+		print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td></tr>";
+		foreach my $key (sort(keys(%orig)))
 		{
-			$perht = ($actualno / $sum) * 100000;
-			$perht = sprintf("%.1f", $perht);
+			my $sum = $orig{$key};
+			my $actualno = $empty{$key};
+			my $perht = 0.0;
+			if ($gender eq '' || $tgender{$key} eq $gender)
+			{
+#			if ($decade eq '' || $tdecade{$key} eq $decade)
+				if ($decade eq '' || exists($sdecades{$tdecade{$key}}))
+				{
+					print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
+					print "<td style='text-align:right'>$empty{$key}</td>";
+					if ($actualno > 0)
+					{
+						$perht = ($actualno / $sum) * 100000;
+						$perht = sprintf("%.1f", $perht);
+					}
+					print "<td style='text-align:right'>$perht</td>";
+					print "<td style='text-align:center'>$tdecade{$key}</td>";
+					print "<td style='text-align:center'>$tgender{$key}</td></tr>";
+				}
+			}
 		}
-		print "<td style='text-align:right'>$perht</td>";
-		print "<td style='text-align:center'>$tdecade{$key}</td>";
-		print "<td style='text-align:center'>$tgender{$key}</td></tr>";
+		print "</table>";
 	}
-	print "</table>";
+	else
+	{
+		print "<pre>\n";
+		print "TextCode\tTotNoWords\tNoOfHits\tHitsPer100k\tDecade\tGender\n";
+		foreach my $key (sort(keys(%orig)))
+		{
+			my $sum = $orig{$key};
+			my $actualno = $empty{$key};
+			my $perht = 0.0;
+			if ($gender eq '' || $tgender{$key} eq $gender)
+			{
+				if ($decade eq '' || exists($sdecades{$tdecade{$key}}))
+				{
+					print "$key\t$orig{$key}\t";
+					print "$empty{$key}\t";
+					if ($actualno > 0)
+					{
+						$perht = ($actualno / $sum) * 100000;
+						$perht = sprintf("%.1f", $perht);
+					}
+					print "$perht\t";
+					print "$tdecade{$key}\t";
+					print "$tgender{$key}\n";
+				}
+			}
+		}
+		print "</pre>";
+	}
+	print "<hr/>";
 	print "<p>The search string sent to cqp: $cqpsearch</p>";
 }
 else
@@ -232,11 +297,11 @@ sub print_header
 	print "</map></td>\n";
 	print "</tr>\n";
 	print "<tr><td align='left'><p class='marg2'>\n";
-	print "<input name='searchstring' size='55' value='$ss'/>";
+	print "<input name='searchstring' size='55' value=\"$ss\"/>";
 	print "<input type='submit' value='Search'>";
 	print "</p></td>\n";
 	print "<td align='right'><p class='marg2'>Decade \n";
-	print $mycgi->popup_menu(-name=>'decade', -values=>['', '1900', '1910', '1920', '1930', '1940', '1950', '1960', '1970', '1980', '1990', '2000', '2010']);
+	print $mycgi->popup_menu(-name=>'decade', -values=>['', '1900', '1910', '1920', '1930', '1940', '1950', '1960', '1970', '1980', '1990', '2000', '2010', '00-30', '40-70', '80-10']);
 	print "&nbsp;Gender of author ";
 	print $mycgi->popup_menu(-name=>'gender', -values=>['', 'female', 'male']);
 	print "</p></td></tr>\n";
@@ -315,15 +380,15 @@ sub build_output
 			$empty{$tid} = $ttemp;
 		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
-		if ($maxcontext == 1000 || $maxcontext == 1500)
+		if ($maxcontext == 1000 || $maxcontext == 1500) #s-unit / sentence output
 		{
 			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $newsource . "]<br/><br/></td></tr><tr><td align='left'></td></tr>\n";
 		}
-		elsif ($maxcontext == 59)
+		elsif ($maxcontext == 59) #KWIC output
 		{
 			$kwic_line = $kwic_line. "<tr><td align='right'>" . $left . "</td><td align='center'>" . $key . "</td><td align='left'>" . $right . " [" . $newsource . "]</td></tr><tr><td colspan='3' align='center'></td></tr>\n";
 		}
-		elsif ($maxcontext == 2000)
+		elsif ($maxcontext == 2000) #tab-separated output
 		{
 		    $left  =~ s/<([^>]+?)>//g;
 		    $right =~ s/<([^>]+?)>//g;
@@ -332,6 +397,10 @@ sub build_output
 		    $left =~ s/^ //;
 		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $source . "\n";
 		}
+	}
+	if ($maxcontext == 2000)
+	{
+		$kwic_line = "<pre>\n" . $kwic_line . "</pre>\n";
 	}
 	return $kwic_line, $nh;
 }
@@ -401,63 +470,12 @@ sub readcbf_json
 	return $numberoftexts;
 }
 
-sub cqpraw
-{
-
-    my ($search, $decennium, $gofA, $skriterium, $display) = @_;
-
-    print "$search<br/>";
-	$search =~ s/´/'/g;
-	$search =~ s/`/'/g;
-
-    my $pid = open2 my $out, my $in, "cqp -c -D CBF" or die "Could not open cqp";
-#itfds-utv01
-#    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
-
-    my $opened = <$out>;
-    print $in "set Context 59;\n";
-    print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
-
-    print "$search<br/>";
-
-    print $in "sok = $search;\n";
-    print $in "size sok;\n";
-    my $numbhits = <$out>;
-    print $in "cat sok;\n";
-
-    my $result;
-    while (! ($result = <$out>))
-    {
-    }
-    my @content = ();
-    push(@content, $result);
-    for (my $ind = 1; $ind++; $ind <= $numbhits)
-    {
-        chomp($result = <$out>);
-        push(@content, $result);
-        $result = '';
-        if ($ind >= $numbhits)
-        {
-            last;
-        }
-    }
-
-    print $in "exit;\n";
-    close($in);
-    close($out);
-
-    waitpid($pid, 0);
-
-    return $numbhits, @content;
-}
-
-
 sub cqp
 {
 
     my ($search, $decennium, $gofA, $skriterium, $display, $maxtodisplay, $maxtocount) = @_;
 
-    my $pid = open2 my $out, my $in, "cqp -c -D CBF" or die "Could not open cqp";
+    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.13/bin/cqp -c -D CBF" or die "Could not open cqp";
 #itfds-utv01
 #    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
 
@@ -505,42 +523,44 @@ sub cqp
 	{
 		$matching = ' :: match.text_gender = "' . $gofA . '"';
 	}
+
 	if ($decennium)
 	{
-		$matching = $matching . ' & match.text_decade = "' . $decennium . '"';
+	    if ($decennium eq '00-30')
+	    {
+			$decennium = ' match.text_decade = "1900" | match.text_decade = "1910" | match.text_decade = "1920" | match.text_decade = "1930"';
+	    }
+	    elsif ($decennium eq '40-70')
+	    {
+			$decennium = ' match.text_decade = "1940" | match.text_decade = "1950" | match.text_decade = "1960" | match.text_decade = "1970"';
+	    }
+	    elsif ($decennium eq '80-10')
+	    {
+			$decennium = ' match.text_decade = "1980" | match.text_decade = "1990" | match.text_decade = "2000" | match.text_decade = "2010"';
+	    }
+	    else
+	    {
+			$decennium = ' match.text_decade = "' . $decennium . '"';
+	    }
+
+		if ($matching)
+		{
+			$matching = $matching . ' &' . $decennium;
+		}
+		else
+		{
+			$matching = ' ::' . $decennium;
+		}
 	}
 
 	my $sokstring = '';
 	$sokstring = &buildSearchString($search);
-#	my $pos = '';
-#	if ($search =~ / /)
-#	{
-#		$search = &buildSearchString($search);
-#		$sokstring = $search; # . $matching;
-#	}
-#	else
-#	{
-#		if ($search !~ /[a-z]/)
-#		{
-#			$search = lc($search);
-#			$sokstring = '[lemma="' . $search . '" %d]'; # . $matching;
-#		}
-#		else
-#		{
-#			if ($search =~ /_/)
-#			{
-#				($search, $pos) = split/_/, $search;
-#				$pos = ' & pos="' . $pos . '"';
-#			}
-#			$sokstring = $sokstring . '[word="' . $search . '" %cd' . $pos . ']';
-#			$sokstring = '[word="' . $search . '" %cd]'; # . $matching;
-#		}
-#	}
 
 	$sokstring = $sokstring . $matching;
 #    print "$sokstring<br/>";
+#    $sokstring = '[word="' . "'d" . '" %cd][word="help"]';
+#    print "$sokstring<br/>";
 #return;
-#    print $in "sok = [word='serendipity' %cd];\n";
     print $in "sok = $sokstring;\n";
     print $in "size sok;\n";
     my $numbhits = <$out>;
@@ -563,7 +583,9 @@ sub cqp
 #Sorting/Reducing
 	if ($numbhits > $maxtocount)
 	{
-		print $in "reduce sok to 500000;\n";
+		print $in "sort randomize;\n";
+    	print $in "set Context 0;\n";	
+		print $in "reduce sok to $maxtocount;\n";
     	print $in "size sok;\n";
 		$numbhits = <$out>;
 	}
@@ -579,11 +601,12 @@ sub cqp
 		}
 		elsif ($skriterium eq 'random')
 		{
-			print $in "sort sok randomize;\n";
+			print $in "sort randomize;\n";
 		}
 		else
 		{
-			print $in "sort by word %cd on matchend[0] .. matchend[42];\n";
+			print $in "sort by word %cd;\n";
+#			print $in "sort by word %cd on matchend[0] .. matchend[42];\n";
 		}
 	}
 
@@ -622,18 +645,27 @@ sub buildSearchString
 {
 	my ($inputstring) = @_;
 
-	my @strings = split/ /, $inputstring;
-#	if ($#strings == 0)
-#	{
-#		push(@strings, $inputstring);
-#	}
+	if ($inputstring =~ /^\[/)
+ 	{
+		$inputstring =~ s/word=([^ ]+?) /word='$1' /g;
+		$inputstring =~ s/lemma=([^ ]+?) /lemma='$1' /g;
+		$inputstring =~ s/pos=([^ ]+?) /pos='$1' /g;
+#		$inputstring =~ s/word=([^\]]+?)\]/word='$1'\]/g;
+		return $inputstring;
+	}
 
+	my @strings = split/ /, $inputstring;
 	my $resturnstring = '';
 	my $pos = '';
 	foreach my $ss (@strings)
 	{
 		$pos = '';
-		if ($ss =~ /^_/)
+		if ($ss eq '*')
+		{
+			$ss =~ s/\*//;
+			$resturnstring = $resturnstring . '[]';
+		}
+		elsif ($ss =~ /^_/)
 		{
 			$ss =~ s/_//;
 			$resturnstring = $resturnstring . '[pos="' . $ss . '"]';
