@@ -309,8 +309,8 @@ sub print_header
 	print "Sort concordance by ";
 	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', 'random', '']);
 	print "</p></td><td align='right'><p class='marg2'>";
-	@contextvalues = ('59', '1000', '2000', '1500');
-	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5');
+	@contextvalues = ('59', '1000', '2000', '1500', '3000');
+	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT');
 	print "Choose kwic or s-unit layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
 	print "</p></td></tr>\n";
@@ -380,7 +380,7 @@ sub build_output
 			$empty{$tid} = $ttemp;
 		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
-		if ($maxcontext == 1000 || $maxcontext == 1500) #s-unit / sentence output
+		if ($maxcontext == 1000 || $maxcontext == 1500 || $maxcontext == 3000) #s-unit / sentence output
 		{
 			$kwic_line = $kwic_line. "<tr><td align='left'>" . $left . $key . $right . " [" . $newsource . "]<br/><br/></td></tr><tr><td align='left'></td></tr>\n";
 		}
@@ -500,7 +500,11 @@ sub cqp
 	{
     	print $in "set Context 100;\n";		
 	}
-
+	elsif ($display eq '3000')
+	{
+		print $in "show +pos +lemma;\n";
+    	print $in "set Context 1 s;\n";		
+	}
     print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
 #print "$search<br/>";
 
