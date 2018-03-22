@@ -224,7 +224,7 @@ function drawChart() {
 // Create the data table.
 var data = new google.visualization.DataTable();
 data.addColumn('string', 'Decade');
-data.addColumn('number', 'Words');
+data.addColumn('number', 'Hits');
 data.addRows([
 $vektor
 //["1900", 1943372],
@@ -241,7 +241,7 @@ $vektor
 //["2010", 1407688]
 ]);
 // Set chart options
-var options = {'title':'No. of words per mil. per decade', 'width':700, 'height':500};
+var options = {'title':'No. of hits per mil. word per decade', 'width':700, 'height':500};
 // Instantiate and draw our chart, passing in some options.
 var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
 chart.draw(data, options);
