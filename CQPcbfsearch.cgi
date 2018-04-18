@@ -14,6 +14,13 @@ use utf8;
 use HTML::Entities;
 
 binmode STDIN, ":utf8";
+binmode CACHE, ":utf8";
+
+my $cachefile = "/var/www/html/hf/ilos/cbf/cache/";
+my $requestIP = $ENV{'REMOTE_ADDR'};
+my $randomno = rand();
+$randomno =~ s/^(\d+)\.//;
+$cachefile = $cachefile . 'resultJSON_' . $requestIP . '-' . $randomno . '.txt';
 
 # Nabu
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
@@ -189,15 +196,17 @@ if ($searchstring)
 	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 	print "<hr/>";
+	my %shinyhash = ();
 	if ($maxcontext != 2000)
 	{
 		print "<table border='1' cellpadding='2' cellspacing='2'>";
-		print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td></tr>";
+		print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td><td>Tertial</td></tr>";
 		foreach my $key (sort(keys(%orig)))
 		{
 			my $sum = $orig{$key};
 			my $actualno = $empty{$key};
 			my $perht = 0.0;
+			my $tertial = 'NA';
 			if ($gender eq '' || $tgender{$key} eq $gender)
 			{
 #			if ($decade eq '' || $tdecade{$key} eq $decade)
@@ -209,10 +218,27 @@ if ($searchstring)
 					{
 						$perht = ($actualno / $sum) * 100000;
 						$perht = sprintf("%.1f", $perht);
+						my $ltemp = $tdecade{$key};
+						my $tiaar = int($ltemp);
+						$tertial = "all";
+						if ($tiaar >= 1900 && $tiaar < 1940)
+						{
+							$tertial = "1900-1939";
+						}
+						elsif ($tiaar >= 1940 && $tiaar < 1980)
+						{
+							$tertial = "1940-1979";
+						}
+						else
+						{
+							$tertial = "1980-2020";
+						}
+						$shinyhash{$key} = $orig{$key} . "\t" . $empty{$key} . "\t" . $perht . "\t" . $tdecade{$key} . "\t" . $tgender{$key} . "\t" . $tertial;
 					}
 					print "<td style='text-align:right'>$perht</td>";
 					print "<td style='text-align:center'>$tdecade{$key}</td>";
-					print "<td style='text-align:center'>$tgender{$key}</td></tr>";
+					print "<td style='text-align:center'>$tgender{$key}</td>";
+					print "<td style='text-align:center'>$tertial</td></tr>";
 				}
 			}
 		}
@@ -227,6 +253,7 @@ if ($searchstring)
 			my $sum = $orig{$key};
 			my $actualno = $empty{$key};
 			my $perht = 0.0;
+			my $tertial = 'NA';
 			if ($gender eq '' || $tgender{$key} eq $gender)
 			{
 				if ($decade eq '' || exists($sdecades{$tdecade{$key}}))
@@ -237,10 +264,27 @@ if ($searchstring)
 					{
 						$perht = ($actualno / $sum) * 100000;
 						$perht = sprintf("%.1f", $perht);
+						my $ltemp = $tdecade{$key};
+						my $tiaar = int($ltemp);
+						$tertial = "all";
+						if ($tiaar >= 1900 && $tiaar < 1940)
+						{
+							$tertial = "1900-1939";
+						}
+						elsif ($tiaar >= 1940 && $tiaar < 1980)
+						{
+							$tertial = "1940-1979";
+						}
+						else
+						{
+							$tertial = "1980-2020";
+						}
+						$shinyhash{$key} = $orig{$key} . "\t" . $empty{$key} . "\t" . $perht . "\t" . $tdecade{$key} . "\t" . $tgender{$key} . "\t" . $tertial;
 					}
 					print "$perht\t";
 					print "$tdecade{$key}\t";
-					print "$tgender{$key}\n";
+					print "$tgender{$key}\t";
+					print "$tertial\n";
 				}
 			}
 		}
@@ -248,6 +292,13 @@ if ($searchstring)
 	}
 	print "<hr/>";
 	print "<p>The search string sent to cqp: $cqpsearch</p>";
+	my $returnvalue = &toShiny(%shinyhash);
+	my $parameter = $cachefile;
+	$parameter =~ s/^(.+)resultJSON/resultJSON/;
+	print "<a href='http://127.0.0.1:6989/?filename=$parameter' target='Shiny1'>Normal distribution?</a>";
+	open(CACHE, ">$cachefile");
+	print CACHE "$returnvalue";
+	close(CACHE);
 }
 else
 {
@@ -826,4 +877,30 @@ sub addtoJSON
     }
 
     return $JSONstring;
+}
+
+sub toShiny
+{
+	my (%localhash) = @_;
+
+	my $hashstring = '';
+	foreach my $key (sort(keys(%localhash)))
+	{
+		my $keydata = $localhash{$key};
+		my @hashdata = split/\t/, $keydata;
+		$hashstring = $hashstring . '{ "textCode": ' . '"' . $key . '", ';
+		$hashstring = $hashstring . '"totWords": ' . $hashdata[0] . ', ';
+		$hashstring = $hashstring . '"noHits": ' . $hashdata[1] . ', ';
+		$hashstring = $hashstring . '"hitsPer100k": ' . $hashdata[2] . ', ';
+		$hashstring = $hashstring . '"decade": ' . '"' . $hashdata[3] . '", ';
+		$hashstring = $hashstring . '"gender": ' . '"' . $hashdata[4] . '", ';
+		$hashstring = $hashstring . '"tertial": ' . '"' . $hashdata[5] . '"}, ';
+	}
+#	my $shinyJSON = encode_json \%localhash;
+#	my $shinyString = decode_json($shinyJSON);
+	$hashstring =~ s/, $//;
+	$hashstring = '[' . $hashstring . ']';
+#	print $hashstring;
+
+	return $hashstring;
 }
