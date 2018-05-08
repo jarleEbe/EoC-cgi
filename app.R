@@ -18,58 +18,116 @@ getURLarg <- function(session) {
 #  return(dtf)
 }
 
-runApp(list(
+plotType <- function(df, type, bins, probab) {
+  switch(type,
+         A = hist(df$hitsPer100k,  main = paste("Histogram of", "normalised freq."), xlab = "No. of hits in corpus", ylab="Freq. per 100,000 words", breaks=bins, border="blue", col="khaki", probability = probab),
+         B = hist(log(df$hitsPer100k), main = paste("Histogram of", "normalised freq. (log values)"), xlab = "No. of hits in the corpus", ylab="Freq. per 100,000 words", breaks=bins, border="blue", col="khaki3", probability = probab),
+         C = hist(df, main = paste("Histogram of", "normalised freq. (trimmed 5%)"), xlab = "No. of of hits in the corpus", ylab="Freq. per 100,000 words", breaks=bins, border="blue", col="moccasin", probability = probab),
+         D = hist(log(df), main = paste("Histogram of", "normalised freq. (trimmed 5% log values)"), xlab = "No. of of hits in the corpus", ylab="Freq. per 100,000 words", breaks=bins, border="blue", col="moccasin", probability = probab))
+}
+
+shapiroType <- function(hPk, type) {
+  switch(type,
+         A = shapiro.test(hPk),
+         B = shapiro.test(log(hPk)),
+         C = shapiro.test(hPk),
+         D = shapiro.test(log(hPk)))
+}
+
+qqplotType <- function(hPk, type) {
+  switch(type,
+         A = list(qqnorm(hPk), qqline(hPk)),
+         B = list(qqnorm(log(hPk)), qqline(log(hPk))),
+         C = "",
+         D = "")
+}
+
+#runApp(list(
   ui = fluidPage(
 #    textOutput('text')
     titlePanel("The Shiny Corpus of British Fiction"),
-    sidebarLayout(position = "left",
-      sidebarPanel = (
-#        sliderInput("Obs", "Number of obs", min = 1, max = 500, value = 250)
-        ""
-      ),
-      mainPanel(
+    sidebarLayout(
+      sidebarPanel(
+#        
+# Input: Slider for the number of bins ----
+        sliderInput(inputId = "nobins",
+                    label = h4("Number of bins:"),
+                    min = 5,
+                    max = 35,
+                    value = 15,
+                    step = 10),
+        radioButtons("pType", label = h4("Histogram (Density)"),
+             choices = list("Normal" = "A", "Log" = "B", "Trim 5%" = "C", "Trim 5% & Log" = "D"), 
+             selected = "A"),
+        checkboxInput('densitycheckbox', label = "Density (Norm. and Log only)", value = FALSE),
+    width = 2),
+    mainPanel(
         verbatimTextOutput('summary'),
         plotOutput('hist'),
-        verbatimTextOutput('shapiroraw'),
+        verbatimTextOutput('shapiro'),
         plotOutput('qqplot'),
-        plotOutput('log'),
-        verbatimTextOutput('shapirolog'),
-        plotOutput('qqplotlog'),
-        plotOutput('trim'),
+#        plotOutput('log'),
+#        verbatimTextOutput('shapirolog'),
+#        plotOutput('qqplotlog'),
+#        plotOutput('trim'),
 #        verbatimTextOutput('shapirotrim'),
-        plotOutput('trimlog'),
-        plotOutput('boxplot'),
-        verbatimTextOutput('kruskal'),
-        plotOutput('boxplotlog'),
-        verbatimTextOutput('kruskallog')
-      )
-    )
-  ),
-  server = function(input, output, session) {
-#    query <- parseQueryString(session$clientData$url_search)
+#        plotOutput('trimlog'),
+#        plotOutput('boxplot'),
+#        verbatimTextOutput('kruskal'),
+#        verbatimTextOutput('wpairwise'),
+#        plotOutput('boxplotlog'),
+#        plotOutput('genderboxplot'),
+#        verbatimTextOutput('wilcoxon'),
+#        verbatimTextOutput('kruskallog')
+    width = 6),
+  fluid = TRUE, position = "left")
+  )
+    server = function(input, output, session) {
     output$summary <- renderPrint({
       df <- getURLarg(session)
       summary(df$hitsPer100k)
     })
       output$hist <- renderPlot({
       df <- getURLarg(session)
-      hist(df$hitsPer100k,  main = paste("Histogram of", "normalised freq."), xlab = "Numb hits in corpus", ylab="Freq. per 100,000 words", breaks = 20, border="blue", col="khaki", probability = TRUE)
-      lines(density(df$hitsPer100k))
+      if (input$pType == "C" | input$pType == "D") {
+        dtfn <- df$hitsPer100k
+        dtfl <- length(dtfn)
+        dtfls <- sort(dtfn)
+        trimfraction <- as.integer(dtfl * 0.05)
+        df <- Trim(dtfls, trim=trimfraction)        
+      }
+      plotType(df, input$pType, input$nobins, TRUE)
+      if (input$densitycheckbox == TRUE & input$pType == "A") {
+      lines(density(df$hitsPer100k), lwd = 2)
       lines(density(df$hitsPer100k, adjust = 2), lty = "dotted")
+      }
+      else if (input$densitycheckbox == TRUE & input$pType == "B") {
+        lines(density(log(df$hitsPer100k)), lwd = 2)
+        lines(density(log(df$hitsPer100k), adjust = 2), lty = "dotted")
+      }
     })
-      output$shapiroraw <- renderPrint({
+      output$shapiro <- renderPrint({
         df <- getURLarg(session)
         hitsPer100k <- df$hitsPer100k
-        shapiro.test(hitsPer100k)
+        if (input$pType == "C" | input$pType == "D") {
+          dtfn <- df$hitsPer100k
+          dtfl <- length(dtfn)
+          dtfls <- sort(dtfn)
+          trimfraction <- as.integer(dtfl * 0.05)
+          hitsPer100k <- Trim(dtfls, trim=trimfraction)
+        }
+        shapiroType(hitsPer100k, input$pType)
     })
       output$qqplot <- renderPlot({
         df <- getURLarg(session)
-        qqnorm(df$hitsPer100k)
-        qqline(df$hitsPer100k)
+        hitsPer100k <- df$hitsPer100k
+        qqplotType(hitsPer100k, input$pType)
+#        qqnorm(df$hitsPer100k)
+#        qqline(df$hitsPer100k)
       })
     output$log <- renderPlot({
       df <- getURLarg(session)
-      hist(log(df$hitsPer100k), main = paste("Histogram of", "normalised freq. (log values)"), xlab = "Numb hits in the corpus", ylab="Freq. per 100,000 words", breaks=20, border="blue", col="khaki3", probability = TRUE)
+      hist(log(df$hitsPer100k), main = paste("Histogram of", "normalised freq. (log values)"), xlab = "No. of hits in the corpus", ylab="Freq. per 100,000 words", breaks=input$nobins, border="blue", col="khaki3")
     })
     output$shapirolog <- renderPrint({
       df <- getURLarg(session)
@@ -88,7 +146,7 @@ runApp(list(
       dtfls <- sort(dtfn)
       trimfraction <- as.integer(dtfl * 0.05)
       dtf2 <- Trim(dtfls, trim=trimfraction)
-      hist(dtf2, main = paste("Histogram of", "normalised freq. (trimmed 5%)"), xlab = "Numb of hits in the corpus", ylab="Freq. per 100,000 words", breaks=20, border="blue", col="moccasin", probability = TRUE)
+      hist(dtf2, main = paste("Histogram of", "normalised freq. (trimmed 5%)"), xlab = "No. of of hits in the corpus", ylab="Freq. per 100,000 words", breaks=input$nobins, border="blue", col="moccasin", probability = TRUE)
     })
     output$shapirotrim <- renderPrint({
       df <- getURLarg(session)
@@ -107,23 +165,41 @@ runApp(list(
       dtfls <- sort(dtfn)
       trimfraction <- as.integer(dtfl * 0.05)
       dtf2 <- Trim(dtfls, trim=trimfraction)
-      hist(log(dtf2), main = paste("Histogram of", "normalised freq. (trimmed 5% and log values)"), xlab = "Numb of hits in the corpus", ylab="Freq. per 100,000 words", breaks=20, border="green", col="orange", probability = TRUE)
+      hist(log(dtf2), main = paste("Histogram of", "normalised freq. (trimmed 5% and log values)"), xlab = "No. of of hits in the corpus", ylab="Freq. per 100,000 words", breaks=20, border="green", col="orange", probability = TRUE)
     })
     output$boxplot <- renderPlot({
       df <- getURLarg(session)
-      boxplot(df$hitsPer100k ~ df$tertial, data = df, main = 'Hits/Tertial', notch = TRUE, col = c('powderblue', 'mistyrose'))
+      boxplot(hitsPer100k ~ tertial, data = df, main = 'Hits/Tertial', notch = FALSE, col = c('powderblue', 'mistyrose'))
     })
     output$kruskal <- renderPrint({
       df <- getURLarg(session)
-      kruskal.test(df$hitsPer100k ~ as.factor(df$tertial), data=df)    
+      kruskal.test(hitsPer100k ~ as.factor(tertial), data=df)    
+    })
+    output$wpairwise <- renderPrint({
+      df <- getURLarg(session)
+      pairwise.wilcox.test(df$hitsPer100k, as.factor(df$tertial), p.adjust.method = "BH")    
     })
     output$boxplotlog <- renderPlot({
       df <- getURLarg(session)
-      boxplot(log(df$hitsPer100k) ~ df$tertial, data = df, main = 'log(Hits)/Tertial', notch = TRUE, col = c('blue', 'cyan'))
+      boxplot(log(hitsPer100k) ~ tertial, data = df, main = 'log(Hits)/Tertial', notch = FALSE, col = c('blue', 'cyan'))
     })
     output$kruskallog <- renderPrint({
       df <- getURLarg(session)
-      kruskal.test(log(df$hitsPer100k) ~ as.factor(df$tertial), data=df)    
+      kruskal.test(log(hitsPer100k) ~ as.factor(tertial), data=df)    
+    })
+    output$genderboxplot <- renderPlot({
+      df <- getURLarg(session)
+      boxplot(hitsPer100k ~ gender, data = df, main = 'Hits/Gender', notch = FALSE, col = c('powderblue', 'mistyrose'))
+    })
+    output$wilcoxon <- renderPrint({
+      df <- getURLarg(session)
+      wilcox.test(log(hitsPer100k) ~ as.factor(gender), data=df)    
     })
   }
-), port = 6989, launch.browser = FALSE)
+shinyApp(ui, server)
+
+#To run
+#runApp("shiny/cqp/", port = 6989, launch.browser = FALSE)
+#library(shiny)
+#runApp("shiny/test2/", display.mode = "showcase", port = 6989, launch.browser = FALSE)
+
