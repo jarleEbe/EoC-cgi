@@ -14,13 +14,17 @@ use utf8;
 use HTML::Entities;
 
 binmode STDIN, ":utf8";
-binmode CACHE, ":utf8";
 
 my $cachefile = "/var/www/html/hf/ilos/cbf/cache/";
+my $urlcache = "http://127.0.0.1/hf/ilos/cbf/cache/";
 my $requestIP = $ENV{'REMOTE_ADDR'};
 my $randomno = rand();
 $randomno =~ s/^(\d+)\.//;
 $cachefile = $cachefile . 'resultJSON_' . $requestIP . '-' . $randomno . '.txt';
+
+my $cacheFlag = 0;
+my $htmlfile = '';
+my $nbmessage = '';
 
 # Nabu
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
@@ -49,8 +53,8 @@ my @contextvalues = ();
 my %contextlabels = ();
 
 #NB! Constants
-my $maxlines = 15000; #Max number of hits to display
-my $absolutemax = 250000; #Max number og hits counted
+my $maxlines = 10000; #Max number of hits to display
+my $absolutemax = 50000; #Max number og hits counted
 my $tablestart = "<table align='center' border='0' cellpadding='0' cellspacing='0' width='98%'>\n";
 my $tableend = "</table>\n";
 
@@ -73,7 +77,7 @@ $totnotexts = &readcbf_json();
 
 if ($searchstring)
 {
-	&print_header($searchstring);
+	&print_header($searchstring, "screen");
 
 	my $numbhits = 0;
 	my $totalhits = 0;
@@ -110,16 +114,20 @@ if ($searchstring)
 #	print "$min:$sec<br/>";
 
 	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $maxlines, $absolutemax);	
-    my $result = &cqptoJSON($searchstring, $maxlines, @cqpresult);
+    my $result = &cqptoJSON($searchstring, $absolutemax, @cqpresult);
 
-#	($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+#	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 #	print "$min:$sec";
 
 	$result = encode('utf-8', $result);
+	my $json_test = eval {decode_json($result)};
+	if ($@)
+	{
+		print "decode_json failed, invalid json. Report error: $@ Try searching with another layout option, e.g. s-unit ot tab.\n";
+	}
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
 	my $actualnumberofhits = $json_data->{'numberofHits'};
-
 	my $male = $json_data->{'male'};
 	my $female = $json_data->{'female'};
 	my $nomaletexts = $json_data->{'noMaleTexts'};
@@ -164,21 +172,33 @@ if ($searchstring)
 	}
 	
 	my $concordance = "";
-	my $nbmessage = '';
+	$nbmessage = '';
 	if ($numbhits > $maxlines)
 	{
-		&build_simple_output();
-		$nbmessage = "No. of hits exceeds $maxlines. Displays counts only.";
+		$htmlfile = $cachefile;
+		$htmlfile =~ s/\.txt/\.html/;
+		open(HTML, ">$htmlfile");
+		select HTML;
+		&print_header("", "file");
+		$cacheFlag = 1;
+#		&build_simple_output();
+#		$nbmessage = "No. of hits exceeds $maxlines. Displays counts only.";
+		$nbmessage = "<p>No. of hits exceeds $maxlines. Output redirected to file.";
 		if ($numbhits == $absolutemax)
 		{
-		    $nbmessage = $nbmessage . "<br/>Tot. no. of hits exceeds $absolutemax. Result set randomised and reduced to $absolutemax.";
+		    $nbmessage = $nbmessage . "<br/>Tot. no. of hits exceeds $absolutemax. Result set randomised and reduced to $absolutemax.<br/>Concordance lines will not be displayed.</p>";
+			&build_simple_output();
+		}
+		else
+		{
+			($concordance, $numbhits) = &build_output($numbhits, $source_path);
 		}
 	}
 	else
 	{
 		($concordance, $numbhits) = &build_output($numbhits, $source_path);
 	}
-	print "<p>$nbmessage</p>";
+#	print "<p>$nbmessage</p>";
 	$concordance = $tablestart . $concordance . $tableend;
 	my $decades = $json_data->{'Decades'};
 	my $decadesstring = '';
@@ -297,12 +317,24 @@ if ($searchstring)
 	$parameter =~ s/^(.+)resultJSON/resultJSON/;
 	print "<a href='http://127.0.0.1:6989/?filename=$parameter' target='Shiny1'>Normal distribution?</a>";
 	open(CACHE, ">$cachefile");
+	binmode CACHE, ":utf8";
 	print CACHE "$returnvalue";
 	close(CACHE);
+	if ($cacheFlag == 1)
+	{
+		print $mycgi->end_html;
+		select STDOUT;
+		$htmlfile =~ s/^(.+)resultJSON/resultJSON/;
+		$htmlfile = $urlcache . $htmlfile;
+		print "<center><table border='1' cellpadding='2' cellspacing='2'><tr><td>";
+		print $nbmessage;
+		print "<p>Output redirected to file <a href='$htmlfile'>$htmlfile</a></p>";
+		print "</td></tr></table>";
+	}
 }
 else
 {
-	&print_header("");
+	&print_header("", "screen");
 }
 print $mycgi->end_html;
 exit;
@@ -322,8 +354,11 @@ exit;
 
 sub print_header
 {
-	my $ss = shift(@_);
-	print "Content-Type: text/html; charset=utf-8\n\n";
+	my ($ss, $medium) = @_;
+	if ($medium eq "screen")
+	{
+		print "Content-Type: text/html; charset=utf-8\n\n";
+	}
 	print "<!DOCTYPE html>\n";
 	print "<html>\n";
 	print "<head><title>CQPcbfsearch</title>\n";
@@ -362,7 +397,7 @@ sub print_header
 	print "</p></td><td align='right'><p class='marg2'>";
 	@contextvalues = ('59', '1000', '2000', '1500', '3000');
 	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT');
-	print "Choose kwic or s-unit layout ";
+	print "Choose kwic or other layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
 	print "</p></td></tr>\n";
 	print "<tr><td colspan='2'><hr/>\n";
@@ -778,7 +813,8 @@ sub cqptoJSON
 		my $tidlid = $textid . '.' . $localid;
 		$sunit =~ s/\n//g;
 		$sunit =~ s/"/&#x0022;/g;
-		$sunit =~ s/\\ \//\\\//g;
+		$sunit =~ s/\//&#x002F;/g;
+		$sunit =~ s/\\//g;
         $localJSON = $localJSON . '{';
         $localJSON = $localJSON . &addtoJSON("localId", $localid, "number");
         $localJSON = $localJSON . &addtoJSON("textId", $textid, "text");

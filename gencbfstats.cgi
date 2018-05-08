@@ -8,7 +8,9 @@ from __future__ import division
 #pylint: disable=C0301
 
 # if we want to give our script parameters, we need a special library
-import sys, os, re, requests, json, cgi, cgitb, codecs, subprocess
+#import urllib3
+import sys, os, re, json, cgi, cgitb, codecs, subprocess
+import requests
 from pprint import pprint
 from subprocess import Popen, PIPE
 
@@ -22,6 +24,8 @@ sys.stdout = UTF8Writer(sys.stdout)
 def getPRloglikelihood(args):
 
     raysonPath = 'http://ucrel.lancs.ac.uk/cgi-bin/llsimple.pl?' + args #f1=511&f2=1848&t1=1578549&t2=16494070"
+#    http = urllib3.PoolManager()
+#    result = http.request('GET', raysonPath)
     result = requests.get(raysonPath)
     if result.status_code != 200:
         raise Exception(result.status_code)
