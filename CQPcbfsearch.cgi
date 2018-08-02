@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#Ebeling, USIT, 19.02.2018.
+#Ebeling, USIT, 24.05.2018.
 
 use strict;
 use CGI;
@@ -12,11 +12,20 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use utf8;
 use HTML::Entities;
+#use Array::Shuffle qw(shuffle_array);
 
 binmode STDIN, ":utf8";
 
 my $cachefile = "/var/www/html/hf/ilos/cbf/cache/";
+#localhost
 my $urlcache = "http://127.0.0.1/hf/ilos/cbf/cache/";
+my $shinypathnormal = "http://127.0.0.1:6989";
+my $shinypathcompare = "http://127.0.0.1:6989";
+#itfds-utv01
+#my $urlcache = "http://itfds-utv01.uio.no/hf/ilos/cbf/cache/";
+#my $shinypathnormal = "http://itfds-utv01.uio.no/shiny/cbf/normaldist";
+#my $shinypathcompare = "http://itfds-utv01.uio.no/shiny/cbf/compareperiods";
+
 my $requestIP = $ENV{'REMOTE_ADDR'};
 my $randomno = rand();
 $randomno =~ s/^(\d+)\.//;
@@ -26,7 +35,7 @@ my $cacheFlag = 0;
 my $htmlfile = '';
 my $nbmessage = '';
 
-# Nabu
+# Nabu / localhost
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
 my $action = "http://127.0.0.1/cgi-bin/cbf";
@@ -53,8 +62,14 @@ my @contextvalues = ();
 my %contextlabels = ();
 
 #NB! Constants
-my $maxlines = 10000; #Max number of hits to display
-my $absolutemax = 50000; #Max number og hits counted
+my $absolutemax = 25000; #Max number of hits counted
+
+if ($maxcontext == 4000) #No display of KWIC lines
+{
+	$absolutemax = 1000000;
+}
+
+my $maxkwiclines = 2500; #Max number of lines output
 my $tablestart = "<table align='center' border='0' cellpadding='0' cellspacing='0' width='98%'>\n";
 my $tableend = "</table>\n";
 
@@ -72,6 +87,8 @@ my %tgender = (); #Text's author's gender
 my %tdecade = (); #Text's decade
 my %sdecades = (); #The decades to include in search
 my $totnotexts = 0;
+my $concordance = "";
+my $maxconcordance = "";
 
 $totnotexts = &readcbf_json();
 
@@ -113,7 +130,14 @@ if ($searchstring)
 #	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 #	print "$min:$sec<br/>";
 
-	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $maxlines, $absolutemax);	
+	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $absolutemax);
+
+#	if ($#cqpresult > $absolutemax)
+#	{
+#		shuffle_array(@cqpresult);
+#		$#cqpresult = $absolutemax;
+#		$numbhits = $#cqpresult;
+#	}
     my $result = &cqptoJSON($searchstring, $absolutemax, @cqpresult);
 
 #	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
@@ -142,6 +166,13 @@ if ($searchstring)
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		$source =~ s/\. /\./;
 		my $textid = $json_data->{'Hits'}->[$ind]->{'textId'};
+		if (exists($empty{$textid}))
+		{
+			my $ttemp = $empty{$textid};
+			$ttemp++;
+			$empty{$textid} = $ttemp;
+		}
+#print "<br/>$textid";
 #		$numbhits++;
 #		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
 		$sunit =~ s/(.*)<([^>]+?)>(.*)/$1$2$3/i;
@@ -171,34 +202,30 @@ if ($searchstring)
 		&sort_kwic;
 	}
 	
-	my $concordance = "";
+	$concordance = "";
+	$maxconcordance = "";
 	$nbmessage = '';
-	if ($numbhits > $maxlines)
+	if ($numbhits >= $maxkwiclines && $maxcontext != 4000)
 	{
-		$htmlfile = $cachefile;
-		$htmlfile =~ s/\.txt/\.html/;
-		open(HTML, ">$htmlfile");
-		select HTML;
-		&print_header("", "file");
+		$nbmessage = $nbmessage . "<center><p>Tot. numb of hits exceeds $maxkwiclines. Displaying $maxkwiclines only. See link bottom of page.</p></center>";
 		$cacheFlag = 1;
-#		&build_simple_output();
-#		$nbmessage = "No. of hits exceeds $maxlines. Displays counts only.";
-		$nbmessage = "<p>No. of hits exceeds $maxlines. Output redirected to file.";
-		if ($numbhits == $absolutemax)
-		{
-		    $nbmessage = $nbmessage . "<br/>Tot. no. of hits exceeds $absolutemax. Result set randomised and reduced to $absolutemax.<br/>Concordance lines will not be displayed.</p>";
-			&build_simple_output();
-		}
-		else
-		{
-			($concordance, $numbhits) = &build_output($numbhits, $source_path);
-		}
+	}
+	if ($numbhits >= $absolutemax && $maxcontext != 4000)
+	{
+		$nbmessage = $nbmessage . "<center><p>Tot. numb of hits exceeds $absolutemax. Result set reduced to $absolutemax.</p></center>";
+	}
+
+	if ($maxcontext == 4000)
+	{
+
 	}
 	else
 	{
-		($concordance, $numbhits) = &build_output($numbhits, $source_path);
+		($concordance, $maxconcordance, $numbhits) = &build_output($numbhits, $source_path, $maxkwiclines);
 	}
-#	print "<p>$nbmessage</p>";
+
+	print "<p>$nbmessage</p>";
+
 	$concordance = $tablestart . $concordance . $tableend;
 	my $decades = $json_data->{'Decades'};
 	my $decadesstring = '';
@@ -315,42 +342,50 @@ if ($searchstring)
 	my $returnvalue = &toShiny(%shinyhash);
 	my $parameter = $cachefile;
 	$parameter =~ s/^(.+)resultJSON/resultJSON/;
-	print "<a href='http://127.0.0.1:6989/?filename=$parameter' target='Shiny1'>Normal distribution?</a>";
+	print "<a href='$shinypathnormal/?filename=$parameter' target='Shiny1'>Normal distribution?</a>";
+	print " | ";
+	print "<a href='$shinypathcompare/?filename=$parameter' target='Shiny2'>Compare periods</a>";
 	open(CACHE, ">$cachefile");
 	binmode CACHE, ":utf8";
 	print CACHE "$returnvalue";
 	close(CACHE);
 	if ($cacheFlag == 1)
 	{
-		print $mycgi->end_html;
-		select STDOUT;
+		$htmlfile = $cachefile;
+		$htmlfile =~ s/\.txt/\.html/;
+		open(CACHE, ">$htmlfile");
+#		binmode CACHE, ":utf8";
+		print CACHE "<!DOCTYPE html>\n";
+		print CACHE "<html>\n";
+		print CACHE "<head><title>CQPcbfsearchresult</title>\n";
+		print CACHE $tablestart;
+		print CACHE $maxconcordance;
+		print CACHE $tableend;
+		print CACHE "</body></html>";
+		close(CACHE);
 		$htmlfile =~ s/^(.+)resultJSON/resultJSON/;
 		$htmlfile = $urlcache . $htmlfile;
-		print "<center><table border='1' cellpadding='2' cellspacing='2'><tr><td>";
-		print $nbmessage;
-		print "<p>Output redirected to file <a href='$htmlfile'>$htmlfile</a></p>";
-		print "</td></tr></table>";
+		print "<br/><a href='$htmlfile' target='CQPcbfsearchresult'>Search result</a>";
+
+#		select STDOUT;
+#		$htmlfile =~ s/^(.+)resultJSON/resultJSON/;
+#		$htmlfile = $urlcache . $htmlfile;
+#		print "<center><table border='1' cellpadding='2' cellspacing='2'><tr><td>";
+#		print $nbmessage;
+#		print "<p>Output redirected to file <a href='$htmlfile'>$htmlfile</a></p>";
+#		print "</td></tr></table>";
 	}
 }
 else
 {
 	&print_header("", "screen");
+	my $startmessage = '<center><p>Enter a searchstring (word, LEMMA or part of speech), and click the Search button.<br/>';
+	$startmessage = $startmessage . '<tr><td>More help and info here:' . '<a href="https://nabu.usit.uio.no/hf/ilos/cbf/cbfhelp.html">CBF help</p></center>';
+	print $startmessage;
 }
 print $mycgi->end_html;
 exit;
 
-#depricated
-#sub searching
-#{
-#	my ($query, $nohits, $filters) = @_;
-
-#	$query = decode('utf-8', $query);
-#	my $url = 'http://127.0.0.1/cgi-bin/cbf/rawcbfsearch.cgi?' . 'q=' . $query . '&nohits=' . $nohits . '&filter=' . $filters;
-#	my $result = get($url);
-#	die "Couldn't get it!" unless defined $result;
-#	$result = encode('utf-8', $result);
-#	return $result;
-#}
 
 sub print_header
 {
@@ -369,9 +404,6 @@ sub print_header
 	print "<form name='readcorpus' method='POST' action='$action/CQPcbfsearch.cgi'>\n";
 	print "<table align='center' width='789' border='0' style='padding:0; border-spacing:0'>\n";
 	print "<tr bgcolor='#000000'>\n";
-#	print "<td style='text-align:left; vertical-align:bottom'>";
-#	print "<img src='$general_path/cbf_blur3.png' style='border:0; vertical-align:center' alt='banner'/>";
-#	print "</td>\n";
 	print "<td style='text-align:left; color:white; font-size:16px; font-weight:bold'>";
 	print "<img src='$general_path/cbf_blur3.png' style='border:0; vertical-align:middle' alt='banner' usemap='#cbfhelp_map'/>";
 	print "<map name='cbfhelp_map'>";
@@ -395,8 +427,8 @@ sub print_header
 	print "Sort concordance by ";
 	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', 'random', '']);
 	print "</p></td><td align='right'><p class='marg2'>";
-	@contextvalues = ('59', '1000', '2000', '1500', '3000');
-	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT');
+	@contextvalues = ('59', '1000', '2000', '1500', '3000', '4000');
+	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT', '4000' => 'empty');
 	print "Choose kwic or other layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
 	print "</p></td></tr>\n";
@@ -453,18 +485,26 @@ sub get_sourcekrit
 
 sub build_output
 {
-	my ($nh, $tlink) = @_;
+	my ($nh, $tlink, $maxKW) = @_;
 	my $kwic_line = "";
+	my $display_line = "";
 	$tlink = '<a target="CBFheader" href="' . $tlink;
+	if ($#output > $maxKW)
+	{
+#		shuffle_array(@output);
+#		$#output = $maxKW;
+	}
+	my $index = 0;
 	foreach my $kline (@output)
 	{
+		$index++;
 		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
-		if (exists($empty{$tid}))
-		{
-			my $ttemp = $empty{$tid};
-			$ttemp++;
-			$empty{$tid} = $ttemp;
-		}
+#		if (exists($empty{$tid}))
+#		{
+#			my $ttemp = $empty{$tid};
+#			$ttemp++;
+#			$empty{$tid} = $ttemp;
+#		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
 		if ($maxcontext == 1000 || $maxcontext == 1500 || $maxcontext == 3000) #s-unit / sentence output
 		{
@@ -483,26 +523,38 @@ sub build_output
 		    $left =~ s/^ //;
 		    $kwic_line = $kwic_line . $left . "\t" . $key . "\t" . $right . "\t" . $source . "\n";
 		}
+		if ($index <= $maxKW)
+		{
+			$display_line = $kwic_line;
+		}
 	}
 	if ($maxcontext == 2000)
 	{
 		$kwic_line = "<pre>\n" . $kwic_line . "</pre>\n";
+		$display_line = "<pre>\n" . $display_line . "</pre>\n";
 	}
-	return $kwic_line, $nh;
+	return $display_line, $kwic_line, $nh;
 }
 
 
 sub build_simple_output
 {
+
+	my ($maxKW) = @_;
+	if ($#output > $maxKW)
+	{
+#		shuffle_array(@output);
+		$#output = $maxKW;
+	}
 	foreach my $kline (@output)
 	{
 		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
-		if (exists($empty{$tid}))
-		{
-			my $ttemp = $empty{$tid};
-			$ttemp++;
-			$empty{$tid} = $ttemp;
-		}
+#		if (exists($empty{$tid}))
+#		{
+#			my $ttemp = $empty{$tid};
+#			$ttemp++;
+#			$empty{$tid} = $ttemp;
+#		}
 	}
 	return;
 }
@@ -559,7 +611,7 @@ sub readcbf_json
 sub cqp
 {
 
-    my ($search, $decennium, $gofA, $skriterium, $display, $maxtodisplay, $maxtocount) = @_;
+    my ($search, $decennium, $gofA, $skriterium, $display, $maxtocount) = @_;
 
     my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.13/bin/cqp -c -D CBF" or die "Could not open cqp";
 #itfds-utv01
@@ -673,14 +725,21 @@ sub cqp
 #Sorting/Reducing
 	if ($numbhits > $maxtocount)
 	{
-		print $in "sort randomize;\n";
-    	print $in "set Context 0;\n";	
+#		print $in "sort randomize;\n";
+#    	print $in "set Context 0;\n";	
+#		print $in "reduce sok to $maxtocount;\n";
+#    	print $in "size sok;\n";
+#		$numbhits = <$out>;
 		print $in "reduce sok to $maxtocount;\n";
     	print $in "size sok;\n";
 		$numbhits = <$out>;
 	}
-	else
-	{
+#	else
+#	elsif ($numbhits > 5000)
+#	{
+#		print $in "reduce sok to 10000;\n";
+#   	print $in "size sok;\n";
+#		$numbhits = <$out>;
 		if ($skriterium eq 'right word')
 		{
 			print $in "sort by word %cd on matchend[1] .. matchend[42];\n";
@@ -698,7 +757,7 @@ sub cqp
 			print $in "sort by word %cd;\n";
 #			print $in "sort by word %cd on matchend[0] .. matchend[42];\n";
 		}
-	}
+#	}
 
     print $in "cat;\n";
 
@@ -735,12 +794,15 @@ sub buildSearchString
 {
 	my ($inputstring) = @_;
 
+#For genetive use _GE, e.g. one _GE to get one's
+
 	if ($inputstring =~ /^\[/)
  	{
 		$inputstring =~ s/word=([^ ]+?) /word='$1' /g;
 		$inputstring =~ s/lemma=([^ ]+?) /lemma='$1' /g;
 		$inputstring =~ s/pos=([^ ]+?) /pos='$1' /g;
 #		$inputstring =~ s/word=([^\]]+?)\]/word='$1'\]/g;
+
 		return $inputstring;
 	}
 
@@ -820,14 +882,14 @@ sub cqptoJSON
         $localJSON = $localJSON . &addtoJSON("textId", $textid, "text");
         $localJSON = $localJSON . &addtoJSON("Sex", $gender, "text");
         $localJSON = $localJSON . &addtoJSON("Decade", $decade, "text");
-		if ($#hitsarr > $numbreqhits)
-		{
-	        $localJSON = $localJSON . &addtoJSON("sunit", "", "text");
-		}
-		else
-		{
-        	$localJSON = $localJSON . &addtoJSON("sunit", $sunit, "text");
-		}
+#		if ($#hitsarr > $numbreqhits)
+#		{
+#	        $localJSON = $localJSON . &addtoJSON("sunit", "", "text");
+#		}
+#		else
+#		{
+       	$localJSON = $localJSON . &addtoJSON("sunit", $sunit, "text");
+#		}
         $localJSON = $localJSON . &addtoJSON("sunitId", $tidlid, "text");
         $localJSON =~ s/, $//;
         $localJSON = $localJSON . '},';
