@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#Ebeling, USIT, 24.05.2018.
+#Ebeling, USIT, 31.01.2019.
 
 use strict;
 use CGI;
@@ -54,6 +54,7 @@ my @fields = $mycgi->param;
 my $searchstring = $mycgi->param('searchstring') || "";
 my $decade = $mycgi->param('decade') || "";
 my $gender = $mycgi->param('gender') || "";
+my $genre = $mycgi->param('genre') || "";
 my $sortkrit = $mycgi->param('sort') || "";
 my $maxcontext = $mycgi->param('maxcontext') || 59;
 my $maxshow = $mycgi->param('maxshow') || 1000000;
@@ -84,6 +85,7 @@ my $cqpsearch = '';
 my %orig = (); #Text code
 my %empty = (); #Hits per text
 my %tgender = (); #Text's author's gender
+my %tgenre = (); #Text's genre
 my %tdecade = (); #Text's decade
 my %sdecades = (); #The decades to include in search
 my $totnotexts = 0;
@@ -138,6 +140,7 @@ if ($searchstring)
 #		$#cqpresult = $absolutemax;
 #		$numbhits = $#cqpresult;
 #	}
+
     my $result = &cqptoJSON($searchstring, $absolutemax, @cqpresult);
 
 #	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
@@ -149,6 +152,8 @@ if ($searchstring)
 	{
 		print "decode_json failed, invalid json. Report error: $@ Try searching with another layout option, e.g. s-unit ot tab.\n";
 	}
+#	print "$result\n";
+
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
 	my $actualnumberofhits = $json_data->{'numberofHits'};
@@ -415,7 +420,7 @@ sub print_header
 	print "</map></td>\n";
 	print "</tr>\n";
 	print "<tr><td align='left'><p class='marg2'>\n";
-	print "<input name='searchstring' size='55' value=\"$ss\"/>";
+	print "<input name='searchstring' size='50' value=\"$ss\"/>";
 	print "<input type='submit' value='Search'>";
 	print "</p></td>\n";
 	print "<td align='right'><p class='marg2'>Decade \n";
@@ -423,13 +428,13 @@ sub print_header
 	print "&nbsp;Gender of author ";
 	print $mycgi->popup_menu(-name=>'gender', -values=>['', 'female', 'male']);
 	print "</p></td></tr>\n";
-	print "<tr><td align='right'><p class='marg2'>\n";
+	print "<tr><td align='left'><p class='marg2'>\n";
 	print "Sort concordance by ";
 	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', 'random', '']);
-	print "</p></td><td align='right'><p class='marg2'>";
+#	print "</p></td><td align='left'><p class='marg2'>";
 	@contextvalues = ('59', '1000', '2000', '1500', '3000', '4000');
 	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT', '4000' => 'empty');
-	print "Choose kwic or other layout ";
+	print "&nbsp;&nbsp;Choose kwic or other layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
 	print "</p></td></tr>\n";
 	print "<tr><td colspan='2'><hr/>\n";
@@ -618,9 +623,8 @@ sub cqp
 #    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
 
     my $opened = <$out>;
-    #print "$opened";
+#print "$opened";
     #print $in "set AutoShow on;\n";
-
 #Default KWIC context and what to output
 	if ($display eq '1000')
 	{
@@ -702,7 +706,7 @@ sub cqp
 #    print "$sokstring<br/>";
 #    $sokstring = '[word="' . "'d" . '" %cd][word="help"]';
 #    print "$sokstring<br/>";
-#return;
+
     print $in "sok = $sokstring;\n";
     print $in "size sok;\n";
     my $numbhits = <$out>;
@@ -721,6 +725,7 @@ sub cqp
 	}
 
 	$totalnumbhits = $numbhits;
+#print "$numbhits\n";
 
 #Sorting/Reducing
 	if ($numbhits > $maxtocount)
@@ -766,20 +771,31 @@ sub cqp
     {
     }
 #    print $result;
+
     @content = ();
     push(@content, $result);
-    for (my $ind = 1; $ind++; $ind <= $numbhits)
-    {
-        chomp($result = <$out>);
-#        print "$result\n";
-        push(@content, $result);
-        $result = '';
-        if ($ind >= $numbhits)
-        {
-#            print "$ind\n";
-            last;
-        }
-    }
+#	print "$numbhits<br/>";
+#	print "$content[0]<br/>";
+
+	if ($numbhits == 1)
+	{
+
+	}
+	else
+	{
+	    for (my $ind = 1; $ind++; $ind <= $numbhits)
+	    {
+    	    chomp($result = <$out>);
+#        	print "Resultat $result\n";
+        	push(@content, $result);
+        	$result = '';
+        	if ($ind >= $numbhits)
+        	{
+#            	print "$ind\n";
+            	last;
+        	}
+    	}
+	}
 
     print $in "exit;\n";
     close($in);
