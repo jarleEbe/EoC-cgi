@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#Ebeling, USIT, 31.01.2019.
+#Ebeling, USIT, 4.4.2019
 
 use strict;
 use CGI;
@@ -12,19 +12,34 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use utf8;
 use HTML::Entities;
-#use Array::Shuffle qw(shuffle_array);
 
 binmode STDIN, ":utf8";
 
+#All hosts / general paths
+my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
+my $general_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
+my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
+my $js_path = "https://nabu.usit.uio.no/hf/cbf/ilos/imagecssjs";
+
+#For cache files used in R/Shiny
 my $cachefile = "/var/www/html/hf/ilos/cbf/cache/";
-#localhost
+
+#Path to CQP registryfiles
+my $cbfregistry = "/usr/local/share/cwb/registry";
+
+#Paths for localhost
+my $action = "http://127.0.0.1/cgi-bin/cbf";
+my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
 my $urlcache = "http://127.0.0.1/hf/ilos/cbf/cache/";
 my $shinypathnormal = "http://127.0.0.1:6989";
 my $shinypathcompare = "http://127.0.0.1:6989";
-#itfds-utv01
-#my $urlcache = "http://itfds-utv01.uio.no/hf/ilos/cbf/cache/";
-#my $shinypathnormal = "http://itfds-utv01.uio.no/shiny/cbf/normaldist";
-#my $shinypathcompare = "http://itfds-utv01.uio.no/shiny/cbf/compareperiods";
+
+#Paths for server (e.g. itfds-utv05)
+#my $action = "http://itfds-utv05.uio.no/cgi-bin/cbf";
+#my $stats_path = "http://itfds-utv05.uio.no/cgi-bin/cbf/CBFstats.cgi?json=";
+#my $urlcache = "http://itfds-utv05.uio.no/hf/ilos/cbf/cache/";
+#my $shinypathnormal = "http://itfds-utv05.uio.no/shiny/cbf/normaldist";
+#my $shinypathcompare = "http://itfds-utv05.uio.no/shiny/cbf/compareperiods";
 
 my $requestIP = $ENV{'REMOTE_ADDR'};
 my $randomno = rand();
@@ -34,19 +49,6 @@ $cachefile = $cachefile . 'resultJSON_' . $requestIP . '-' . $randomno . '.txt';
 my $cacheFlag = 0;
 my $htmlfile = '';
 my $nbmessage = '';
-
-# Nabu / localhost
-my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
-my $general_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
-my $action = "http://127.0.0.1/cgi-bin/cbf";
-#itfds-utv01
-#my $action = "http://itfds-utv01.uio.no/cgi-bin/cbf";
-my $contextaction = "http://127.0.0.1/cgi-bin/cbf/CBFcontext.cgi?id=";
-my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
-my $js_path = "https://nabu.usit.uio.no/hf/cbf/ilos/imagecssjs";
-my $stats_path = "http://127.0.0.1/cgi-bin/cbf/CBFstats.cgi?json=";
-#itfds-utv01
-#my $stats_path = "http://itfds-utv01.uio.no/cgi-bin/cbf/CBFstats.cgi?json=";
 
 my $mycgi = new CGI;
 my @fields = $mycgi->param;
@@ -84,8 +86,14 @@ my $cqpsearch = '';
 
 my %orig = (); #Text code
 my %empty = (); #Hits per text
+
 my %tgender = (); #Text's author's gender
+my %ttypes = (); #Text's number of types (as opposded to tokens)
+my %thapax = (); #Text's texts number og hapax
+
 my %tgenre = (); #Text's genre
+my %sgenres = (); #The genres to include in search. 
+
 my %tdecade = (); #Text's decade
 my %sdecades = (); #The decades to include in search
 my $totnotexts = 0;
@@ -129,22 +137,9 @@ if ($searchstring)
     }
 
 
-#	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-#	print "$min:$sec<br/>";
-
-	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($searchstring, $decade, $gender, $sortkrit, $maxcontext, $absolutemax);
-
-#	if ($#cqpresult > $absolutemax)
-#	{
-#		shuffle_array(@cqpresult);
-#		$#cqpresult = $absolutemax;
-#		$numbhits = $#cqpresult;
-#	}
+	($numbhits, $totalhits, $cqpsearch, @cqpresult) = &cqp($cbfregistry, $searchstring, $decade, $gender, $genre, $sortkrit, $maxcontext, $absolutemax);
 
     my $result = &cqptoJSON($searchstring, $absolutemax, @cqpresult);
-
-#	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
-#	print "$min:$sec";
 
 	$result = encode('utf-8', $result);
 	my $json_test = eval {decode_json($result)};
@@ -152,7 +147,6 @@ if ($searchstring)
 	{
 		print "decode_json failed, invalid json. Report error: $@ Try searching with another layout option, e.g. s-unit ot tab.\n";
 	}
-#	print "$result\n";
 
 	my $json_data = decode_json($result);
 	my $reqnumberofhits = $json_data->{'requestednoHits'};
@@ -166,7 +160,6 @@ if ($searchstring)
 	for (my $ind = 0; $ind < $numberofhits; $ind++)
 	{
 		my $sunit = $json_data->{'Hits'}->[$ind]->{'sunit'};
-#		$sunit = encode('utf-8', $sunit);
 		my $gender = $json_data->{'Hits'}->[$ind]->{'sunit'};
 		my $source = $json_data->{'Hits'}->[$ind]->{'sunitId'};
 		$source =~ s/\. /\./;
@@ -177,9 +170,7 @@ if ($searchstring)
 			$ttemp++;
 			$empty{$textid} = $ttemp;
 		}
-#print "<br/>$textid";
-#		$numbhits++;
-#		$sunit =~ s/(.*?)(<b>.+<\/b>)(.*)/$1$2$3/i;
+
 		$sunit =~ s/(.*)<([^>]+?)>(.*)/$1$2$3/i;
 		my $leftcontext = $1 || "";
 		if (length($leftcontext) > $maxcontext)
@@ -195,10 +186,6 @@ if ($searchstring)
 		{
 			$rightcontext = substr($rightcontext, 0, $maxcontext) . "&hellip;";
 		}
-		my $link = $contextaction . $source;
-#		$keyword =~ s/<b>/<a style="text-decoration: none; color: #000000" href="$link">/;
-#		$keyword =~ s/<\/b>/<\/a>/;
-#		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold" href="$link">' . $keyword . '</a>';
 		$keyword = '<a style="text-decoration: none; color: #000000; font-weight: bold">' . $keyword . '</a>';
 		push(@output, "$leftcontext\t$keyword\t$rightcontext\t$source\t$textid");
 	}
@@ -244,30 +231,39 @@ if ($searchstring)
 	$statsString =~ s/, $//;
 	$statsString = $statsString . '}}';
 	my $statsLink = "<a href='" . $stats_path . $statsString . "' target='CBFstats'> More statistics</a>";
-#	my $statsLink = '';
-	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
+
+	my $genres = $json_data->{'Genres'};
+	my $genresstring = '';
+	foreach my $key (sort(keys(%$genres)))
+	{
+		$genresstring = $genresstring . $key . ' : ' . $genres->{$key} . ', ';
+	}
+	$genresstring =~ s/, $//;
+
+	$concordance = "<center>" . $numbhits  . " hits in " . $numberoftexts . " of " . $totnotexts . " texts<br/>(male: " . $male . " (" . $nomaletexts . " texts) / female " . $female . " (" . $nofemaletexts . " texts)) " . $statsLink . "<br/>" . $genresstring . "<br/>" . $decadesstring . "</center>" . "<br/>" . $concordance;
 	print $concordance;
 	print "<hr/>";
 	my %shinyhash = ();
 	if ($maxcontext != 2000)
 	{
 		print "<table border='1' cellpadding='2' cellspacing='2'>";
-		print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td><td>Tertial</td></tr>";
+		print "<tr><td>Text code</td><td>Tot. words</td><td>No. of hits</td><td>Hits per 100,000</td><td>Decade</td><td>Gender</td><td>Tertial</td><td>Genre</td><td>Types</td><td>Hapax</td><td>Hapax %</td></tr>";
 		foreach my $key (sort(keys(%orig)))
 		{
 			my $sum = $orig{$key};
 			my $actualno = $empty{$key};
 			my $perht = 0.0;
 			my $tertial = 'NA';
+			my $thpercent = 0;
 			if ($gender eq '' || $tgender{$key} eq $gender)
 			{
-#			if ($decade eq '' || $tdecade{$key} eq $decade)
 				if ($decade eq '' || exists($sdecades{$tdecade{$key}}))
 				{
-					print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
-					print "<td style='text-align:right'>$empty{$key}</td>";
 					if ($actualno > 0)
 					{
+						print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
+						print "<td style='text-align:right'>$empty{$key}</td>";
+
 						$perht = ($actualno / $sum) * 100000;
 						$perht = sprintf("%.1f", $perht);
 						my $ltemp = $tdecade{$key};
@@ -286,11 +282,18 @@ if ($searchstring)
 							$tertial = "1980-2020";
 						}
 						$shinyhash{$key} = $orig{$key} . "\t" . $empty{$key} . "\t" . $perht . "\t" . $tdecade{$key} . "\t" . $tgender{$key} . "\t" . $tertial;
+
+						$thpercent = ($thapax{$key} / $ttypes{$key}) * 100;
+						$thpercent = sprintf("%.1f", $thpercent);
+						print "<td style='text-align:right'>$perht</td>";
+						print "<td style='text-align:center'>$tdecade{$key}</td>";
+						print "<td style='text-align:center'>$tgender{$key}</td>";
+						print "<td style='text-align:center'>$tertial</td>";
+						print "<td style='text-align:center'>$tgenre{$key}</td>";
+						print "<td style='text-align:center'>$ttypes{$key}</td>";
+						print "<td style='text-align:center'>$thapax{$key}</td>";
+						print "<td style='text-align:center'>$thpercent</td></tr>";
 					}
-					print "<td style='text-align:right'>$perht</td>";
-					print "<td style='text-align:center'>$tdecade{$key}</td>";
-					print "<td style='text-align:center'>$tgender{$key}</td>";
-					print "<td style='text-align:center'>$tertial</td></tr>";
 				}
 			}
 		}
@@ -299,13 +302,14 @@ if ($searchstring)
 	else
 	{
 		print "<pre>\n";
-		print "TextCode\tTotNoWords\tNoOfHits\tHitsPer100k\tDecade\tGender\n";
+		print "TextCode\tTotNoWords\tNoOfHits\tHitsPer100k\tDecade\tGender\tTertial\tGenre\tTypes\tHapax\n";
 		foreach my $key (sort(keys(%orig)))
 		{
 			my $sum = $orig{$key};
 			my $actualno = $empty{$key};
 			my $perht = 0.0;
 			my $tertial = 'NA';
+			my $thpercent = 0;
 			if ($gender eq '' || $tgender{$key} eq $gender)
 			{
 				if ($decade eq '' || exists($sdecades{$tdecade{$key}}))
@@ -332,11 +336,17 @@ if ($searchstring)
 							$tertial = "1980-2020";
 						}
 						$shinyhash{$key} = $orig{$key} . "\t" . $empty{$key} . "\t" . $perht . "\t" . $tdecade{$key} . "\t" . $tgender{$key} . "\t" . $tertial;
+						$thpercent = ($thapax{$key} / $ttypes{$key}) * 100;
+						$thpercent = sprintf("%.1f", $thpercent);
 					}
 					print "$perht\t";
 					print "$tdecade{$key}\t";
 					print "$tgender{$key}\t";
-					print "$tertial\n";
+					print "$tertial\t";
+					print "$tgenre{$key}\t";
+					print "$ttypes{$key}\t";
+					print "$thapax{$key}\n";
+					print "$thpercent\n";
 				}
 			}
 		}
@@ -359,7 +369,6 @@ if ($searchstring)
 		$htmlfile = $cachefile;
 		$htmlfile =~ s/\.txt/\.html/;
 		open(CACHE, ">$htmlfile");
-#		binmode CACHE, ":utf8";
 		print CACHE "<!DOCTYPE html>\n";
 		print CACHE "<html>\n";
 		print CACHE "<head><title>CQPcbfsearchresult</title>\n";
@@ -371,14 +380,6 @@ if ($searchstring)
 		$htmlfile =~ s/^(.+)resultJSON/resultJSON/;
 		$htmlfile = $urlcache . $htmlfile;
 		print "<br/><a href='$htmlfile' target='CQPcbfsearchresult'>Search result</a>";
-
-#		select STDOUT;
-#		$htmlfile =~ s/^(.+)resultJSON/resultJSON/;
-#		$htmlfile = $urlcache . $htmlfile;
-#		print "<center><table border='1' cellpadding='2' cellspacing='2'><tr><td>";
-#		print $nbmessage;
-#		print "<p>Output redirected to file <a href='$htmlfile'>$htmlfile</a></p>";
-#		print "</td></tr></table>";
 	}
 }
 else
@@ -431,7 +432,6 @@ sub print_header
 	print "<tr><td align='left'><p class='marg2'>\n";
 	print "Sort concordance by ";
 	print $mycgi->popup_menu(-name=>'sort', -values=>['keyword', 'right word', 'left word', 'source', 'random', '']);
-#	print "</p></td><td align='left'><p class='marg2'>";
 	@contextvalues = ('59', '1000', '2000', '1500', '3000', '4000');
 	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT', '4000' => 'empty');
 	print "&nbsp;&nbsp;Choose kwic or other layout ";
@@ -496,20 +496,12 @@ sub build_output
 	$tlink = '<a target="CBFheader" href="' . $tlink;
 	if ($#output > $maxKW)
 	{
-#		shuffle_array(@output);
-#		$#output = $maxKW;
 	}
 	my $index = 0;
 	foreach my $kline (@output)
 	{
 		$index++;
 		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
-#		if (exists($empty{$tid}))
-#		{
-#			my $ttemp = $empty{$tid};
-#			$ttemp++;
-#			$empty{$tid} = $ttemp;
-#		}
 		my $newsource = $tlink . '/' . $tid . '_header.xml">' . $source . '</a>';
 		if ($maxcontext == 1000 || $maxcontext == 1500 || $maxcontext == 3000) #s-unit / sentence output
 		{
@@ -548,18 +540,11 @@ sub build_simple_output
 	my ($maxKW) = @_;
 	if ($#output > $maxKW)
 	{
-#		shuffle_array(@output);
 		$#output = $maxKW;
 	}
 	foreach my $kline (@output)
 	{
 		my ($left, $key, $right, $source, $tid) = split/\t/, $kline;
-#		if (exists($empty{$tid}))
-#		{
-#			my $ttemp = $empty{$tid};
-#			$ttemp++;
-#			$empty{$tid} = $ttemp;
-#		}
 	}
 	return;
 }
@@ -594,11 +579,6 @@ sub readcbf_json
 
 	my $jsonfromfile = join(" ", @content);
 	my $json_data = decode_json($jsonfromfile);
-
-#	my $male = $json_data->{'male'};
-#	my $female = $json_data->{'female'};
-#	my $nomaletexts = $json_data->{'noMaleTexts'};
-#	my $nofemaletexts = $json_data->{'noFemaleTexts'};
 	my $numberoftexts = $json_data->{'noTexts'};
 	my $textcodes = $json_data->{'Texts'};
 
@@ -606,6 +586,9 @@ sub readcbf_json
 	{
 		$orig{$key} = $textcodes->{$key}->{'noWords'};
 		$tgender{$key} = $textcodes->{$key}->{'Gender'};
+		$tgenre{$key} = $textcodes->{$key}->{'Genre'};
+		$ttypes{$key} = $textcodes->{$key}->{'Types'};
+		$thapax{$key} = $textcodes->{$key}->{'Hapax'};
 		$tdecade{$key} = $textcodes->{$key}->{'Decade'};
 		$empty{$key} = 0;
 	}
@@ -616,16 +599,31 @@ sub readcbf_json
 sub cqp
 {
 
-    my ($search, $decennium, $gofA, $skriterium, $display, $maxtocount) = @_;
+    my ($CBFregistry, $search, $decennium, $gofA, $CBFgenre, $skriterium, $display, $maxtocount) = @_;
 
-    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.13/bin/cqp -c -D CBF" or die "Could not open cqp";
-#itfds-utv01
+##Path to CQP depends on where it was installed and version
+#Localhost
+    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.13/bin/cqp -c" or die "Could not open cqp";
+#itfds-utv05
+#    my $pid = open2 my $out, my $in, "/usr/local/bin/cqp -c " or die "Could not open cqp";
+
+#itfds-utv01 (old/depricated)
 #    my $pid = open2 my $out, my $in, "/usr/local/cwb-3.4.12/bin/cqp -c -D CBF" or die "Could not open cqp";
 
+	$out->autoflush();
+	$in->autoflush();
+	STDIN->autoflush();
+	STDOUT->autoflush();
+
     my $opened = <$out>;
-#print "$opened";
-    #print $in "set AutoShow on;\n";
-#Default KWIC context and what to output
+
+#Point to registry file, choose corpus and decide what to output to <$out> with the 'set' command in CQP
+    print $in "set Registry '" . $CBFregistry . "';\n";
+    print $in "CBF;\n";
+    print $in "set PrintStructures 'text_id, text_gender, text_genre, text_decade';\n";
+
+
+#Based on user's choices, decide how to display the hits
 	if ($display eq '1000')
 	{
    		print $in "set Context 1 s;\n";
@@ -647,29 +645,15 @@ sub cqp
 		print $in "show +pos +lemma;\n";
     	print $in "set Context 1 s;\n";		
 	}
-    print $in "set PrintStructures 'text_id, text_gender, text_decade';\n";
-#print "$search<br/>";
 
-
-#How to set sentenece view (KWIC is default)
-#       print $in "set Context s;\n";
-
-#How to show <s> ... </s>
-#       print $in "show +s;\n";
-
-#How to show/hide pos and lemma info
-#       print $in "show +pos +lemma;\n"; #show
-#       print $in "show -pos -lemma;\n"; #(hide)
-
-
-#Add filters gender and/ or (one) decade
-#	print "$search<br/>";
+#Add filters gender and/ or decade
 	my $matching = '';
 	if ($gofA)
 	{
 		$matching = ' :: match.text_gender = "' . $gofA . '"';
 	}
 
+#If period is set
 	if ($decennium)
 	{
 	    if ($decennium eq '00-30')
@@ -703,9 +687,6 @@ sub cqp
 	$sokstring = &buildSearchString($search);
 
 	$sokstring = $sokstring . $matching;
-#    print "$sokstring<br/>";
-#    $sokstring = '[word="' . "'d" . '" %cd][word="help"]';
-#    print "$sokstring<br/>";
 
     print $in "sok = $sokstring;\n";
     print $in "size sok;\n";
@@ -725,44 +706,31 @@ sub cqp
 	}
 
 	$totalnumbhits = $numbhits;
-#print "$numbhits\n";
 
 #Sorting/Reducing
 	if ($numbhits > $maxtocount)
 	{
-#		print $in "sort randomize;\n";
-#    	print $in "set Context 0;\n";	
-#		print $in "reduce sok to $maxtocount;\n";
-#    	print $in "size sok;\n";
-#		$numbhits = <$out>;
 		print $in "reduce sok to $maxtocount;\n";
     	print $in "size sok;\n";
 		$numbhits = <$out>;
 	}
-#	else
-#	elsif ($numbhits > 5000)
-#	{
-#		print $in "reduce sok to 10000;\n";
-#   	print $in "size sok;\n";
-#		$numbhits = <$out>;
-		if ($skriterium eq 'right word')
-		{
-			print $in "sort by word %cd on matchend[1] .. matchend[42];\n";
-		}
-		elsif ($skriterium eq 'left word')
-		{
-			print $in "sort by word %cd on matchend[-1] .. matchend[-42];\n";
-		}
-		elsif ($skriterium eq 'random')
-		{
-			print $in "sort randomize;\n";
-		}
-		else
-		{
-			print $in "sort by word %cd;\n";
-#			print $in "sort by word %cd on matchend[0] .. matchend[42];\n";
-		}
-#	}
+
+	if ($skriterium eq 'right word')
+	{
+		print $in "sort by word %cd on matchend[1] .. matchend[42];\n";
+	}
+	elsif ($skriterium eq 'left word')
+	{
+		print $in "sort by word %cd on matchend[-1] .. matchend[-42];\n";
+	}
+	elsif ($skriterium eq 'random')
+	{
+		print $in "sort randomize;\n";
+	}
+	else
+	{
+		print $in "sort by word %cd;\n";
+	}
 
     print $in "cat;\n";
 
@@ -770,12 +738,9 @@ sub cqp
     while (! ($result = <$out>))
     {
     }
-#    print $result;
 
     @content = ();
     push(@content, $result);
-#	print "$numbhits<br/>";
-#	print "$content[0]<br/>";
 
 	if ($numbhits == 1)
 	{
@@ -786,12 +751,10 @@ sub cqp
 	    for (my $ind = 1; $ind++; $ind <= $numbhits)
 	    {
     	    chomp($result = <$out>);
-#        	print "Resultat $result\n";
         	push(@content, $result);
         	$result = '';
         	if ($ind >= $numbhits)
         	{
-#            	print "$ind\n";
             	last;
         	}
     	}
@@ -817,8 +780,6 @@ sub buildSearchString
 		$inputstring =~ s/word=([^ ]+?) /word='$1' /g;
 		$inputstring =~ s/lemma=([^ ]+?) /lemma='$1' /g;
 		$inputstring =~ s/pos=([^ ]+?) /pos='$1' /g;
-#		$inputstring =~ s/word=([^\]]+?)\]/word='$1'\]/g;
-
 		return $inputstring;
 	}
 
@@ -877,17 +838,20 @@ sub cqptoJSON
 	my $numbtexts = 0;
 	my $numbhits = 0;
 	my %decades = ();
+	my %genres = ();
 	my %textids = ();
+
     foreach my $hitsrow (@hitsarr)
     {
 		$numbhits++;
-        $hitsrow =~ s/(\d+): <text_id ([^>]+?)><text_gender ([^>]+?)><text_decade ([^>]+?)>: (.*)/$1\t$2\t$3\t$4\t$5/;
+        $hitsrow =~ s/(\d+): <text_id ([^>]+?)><text_gender ([^>]+?)><text_genre ([^>]+?)><text_decade ([^>]+?)>: (.*)/$1\t$2\t$3\t$4\t$5\t$6/;
         my @cols = split/\t/, $hitsrow;
 		my $localid = $cols[0];
 		my $textid = $cols[1];
 		my $gender = $cols[2];
-		my $decade = $cols[3];
-		my $sunit = $cols[4];
+		my $genre = $cols[3];
+		my $decade = $cols[4];
+		my $sunit = $cols[5];
 		my $tidlid = $textid . '.' . $localid;
 		$sunit =~ s/\n//g;
 		$sunit =~ s/"/&#x0022;/g;
@@ -897,15 +861,9 @@ sub cqptoJSON
         $localJSON = $localJSON . &addtoJSON("localId", $localid, "number");
         $localJSON = $localJSON . &addtoJSON("textId", $textid, "text");
         $localJSON = $localJSON . &addtoJSON("Sex", $gender, "text");
+        $localJSON = $localJSON . &addtoJSON("Genre", $genre, "text");
         $localJSON = $localJSON . &addtoJSON("Decade", $decade, "text");
-#		if ($#hitsarr > $numbreqhits)
-#		{
-#	        $localJSON = $localJSON . &addtoJSON("sunit", "", "text");
-#		}
-#		else
-#		{
        	$localJSON = $localJSON . &addtoJSON("sunit", $sunit, "text");
-#		}
         $localJSON = $localJSON . &addtoJSON("sunitId", $tidlid, "text");
         $localJSON =~ s/, $//;
         $localJSON = $localJSON . '},';
@@ -930,6 +888,17 @@ sub cqptoJSON
 			$decades{$decade} = 1;
 		}
 
+		if (exists($genres{$genre}))
+		{
+			my $temp = $genres{$genre};
+			$temp++;
+			$genres{$genre} = $temp;
+		}
+		else
+		{
+			$genres{$genre} = 1;
+		}
+
 		if (exists($textids{$textid}))
 		{
 
@@ -950,11 +919,18 @@ sub cqptoJSON
 
     $localJSON =~ s/,$//;
 	my $decadesstring = '';
-	foreach my $key (sort(keys(%decades)))
+	foreach my $key (keys(%decades))
 	{
 		$decadesstring = $decadesstring . '"' . $key . '": ' . $decades{$key} . ', ';
 	}
     $decadesstring =~ s/, $//;
+	my $genresstring = '';
+	foreach my $key (keys(%genres))
+	{
+		$genresstring = $genresstring . '"' . $key . '": ' . $genres{$key} . ', ';
+	}
+    $genresstring =~ s/, $//;
+
 
 	$numbtexts = keys(%textids);
 	my $sums = '"searchstring": ' . '"' . $thesearch . '", ';
@@ -964,13 +940,12 @@ sub cqptoJSON
 	$sums = $sums . '"noFemaleTexts": ' . '"' . $nofemaletexts . '", ';
 	$sums = $sums . '"requestednoHits": ' . $numbreqhits . ', ';
 	$sums = $sums . '"male": ' . '"' . $male . '", ';
+	$sums = $sums . '"Genres": {' . $genresstring . '},';
 	$sums = $sums . '"Decades": {' . $decadesstring . '},';
 	$sums = $sums . '"numberofTexts": ' . '"' . $numbtexts . '"';
 
 #Counts in here
     $allhits = $allhits . $localJSON . '], ' . $sums . '}';
-
-#print "$numbhits : $numbtexts<br/>";
 
     return $allhits;
 }
@@ -1010,11 +985,12 @@ sub toShiny
 		$hashstring = $hashstring . '"gender": ' . '"' . $hashdata[4] . '", ';
 		$hashstring = $hashstring . '"tertial": ' . '"' . $hashdata[5] . '"}, ';
 	}
-#	my $shinyJSON = encode_json \%localhash;
-#	my $shinyString = decode_json($shinyJSON);
 	$hashstring =~ s/, $//;
 	$hashstring = '[' . $hashstring . ']';
-#	print $hashstring;
 
 	return $hashstring;
 }
+
+#Not used 
+#	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+#	print "$min:$sec<br/>";

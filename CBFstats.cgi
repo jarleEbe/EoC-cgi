@@ -10,9 +10,13 @@ use JSON;
 use utf8;
 use Encode qw(decode encode);
 
-#nabu
+#Localhost
 my $statsPath = "http://127.0.0.1/cgi-bin/cbf/gencbfstats.cgi";
 my $scriptpath = "/home/jarlee/prog/R/script/";
+#itfds-utv01
+#my $statsPath = "http://itfds-utv01.uio.no/cgi-bin/cbf/gencbfstats.cgi";
+#my $scriptpath = "/var/www/cgi-bin/cbf/";
+
 my $proptest = "scriptPropTest.R";
 my $fishertest = "scriptFisherTest.R";
 
@@ -33,6 +37,7 @@ if ($json)
 	my $allfemale = $json_data->{'noFemaleWords'};
 	my $decades = $json_data->{'Decades'};
 	my $pvalues = $json_data->{'Pvalues'};
+	my $expvalues = $json_data->{'ExpValues'};
 
 	my $jsonRaw = decode_json($json);
 	my $rawmale = $jsonRaw->{'male'};
@@ -45,7 +50,15 @@ if ($json)
 		$vektorString = $vektorString . '["' . $decade . '",' . $num . '],';
 	}
 
-	my $pvalueString = '<i>X</i><sup>2</sup>, <i>p</i>-values: ';
+	my $pvalueString = 'Expected values: ';
+	foreach my $pvalue (sort keys %$pvalues)
+	{
+		my $xvalue = $expvalues->{$pvalue};
+		$pvalueString = $pvalueString . ' ' . $pvalue . ': ' . $xvalue . ', ';
+	}
+	$pvalueString =~ s/, $//;
+
+	$pvalueString = $pvalueString . '<br/><i>X</i><sup>2</sup>, <i>p</i>-values: ';
 	foreach my $pvalue (sort keys %$pvalues)
 	{
 		my $num = $pvalues->{$pvalue};
@@ -197,13 +210,14 @@ sub cbftotal
 
 	push(@result, "</p>");
 	my $returnvalue = join(" ", @result);
+
 	return $returnvalue;
 
 }
 
 sub prepareHtml
 {
-	my ($vektor,  $myJSON, $male, $female, $ptestpval, $ftestpval, $pvalueoutput, $all) = @_;
+	my ($vektor, $myJSON, $male, $female, $ptestpval, $ftestpval, $pvalueoutput, $all) = @_;
 #print <<HTML;
 #$vektor = '1900';
 my $html = <<"HTMLEND";
@@ -241,7 +255,7 @@ $vektor
 //["2010", 1407688]
 ]);
 // Set chart options
-var options = {'title':'No. of hits per mil. word per decade', 'width':700, 'height':500};
+var options = {'title':'No. of hits per mil. words per decade', 'width':700, 'height':500};
 // Instantiate and draw our chart, passing in some options.
 var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
 chart.draw(data, options);
@@ -252,7 +266,7 @@ chart.draw(data, options);
 <!--Div that will hold the pie chart-->
 <div id="chart_div"></div>
 <div id="raw_data"><p>Male / Female per mil.: $male / $female (prop.test <i>p</i> $ptestpval, fisher.test <i>p</i> $ftestpval)</p>
-<p>$myJSON<br/>$pvalueoutput<br/>(- = underuse in decade / + = overuse in decade relative to rest of corpus, acc. Rayson's LL calc)</p><p>$all</p></div>
+<p>$myJSON<br/>$pvalueoutput</p><p>$all</p></div>
 </body>
 </html>
 HTMLEND
