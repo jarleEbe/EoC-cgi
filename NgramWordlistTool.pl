@@ -3,8 +3,8 @@
 use strict;
 use utf8;
 
-#E.g. cwbdata/
-my ($basePath) = @ARGV;
+#E.g. prepdata/
+my ($basePath, $grams) = @ARGV;
 
 
 my $headerfile = "allheaders.txt";
@@ -25,11 +25,16 @@ foreach (@tempcontent)
 opendir(DS, $basePath) or die $!;
 my $numFiles = 0;
 my $numhits = 0;
-my $referencefile = "WLL-refCorpus.txt";
+my $referencefile = "Ngram-WLL-refCorpus.txt";
 open(REF, ">$referencefile");
 binmode REF, ":utf8";
 my %corpusList = ();
 my %corpusNumList = ();
+my @nGrams = ();
+for (my $ind = 0; $ind < $grams; $ind++)
+{
+    $nGrams[$ind] = '';
+}
 while (my $txt = readdir(DS))
 {
 	if ($txt =~ /\.txt$/i)
@@ -49,6 +54,7 @@ while (my $txt = readdir(DS))
 		open(KEYS, ">$outputfile");
 		binmode KEYS, ":utf8";
 		my $meta = shift(@content);
+        my $numLemmas = 0;
 		foreach my $line (@content)
 		{
 		    $line =~ s/\n//;
@@ -61,8 +67,9 @@ while (my $txt = readdir(DS))
 					my $word = $rad[0];
 					my $pos = $rad[1];
 					my $lem = $rad[2];
+                    $numLemmas++;
 
-					if ($pos eq 'NP' || $pos eq 'NP1' or $pos eq 'NP2')
+					if ($numLemmas < $grams)
 					{
 #						print "$lem : $pos\n";
 					}
@@ -70,9 +77,28 @@ while (my $txt = readdir(DS))
 					{
 						$pos = substr($pos, 0,1);
 						my $wp = lc($word) . '_' . $pos;
-						my $lp = $lem . '_' . $pos; #Egen fil / Egen linje?
+#						my $lp = $lem . '_' . $pos; #Egen fil / Egen linje?
+                        for (my $ind = 0; $ind < $#nGrams; $ind++)
+                        {
+                            $nGrams[$ind] = $nGrams[$ind + 1];
+                        }
+                        $nGrams[$#nGrams] = $lem;
+                        my $lp = '';
+                        my $includeFlag = 1;
+                        foreach my $current (@nGrams)
+                        {
+                            $lp = $lp . '_' . $current;
+                            if ($current =~ /(^[A-Za-z0-9])/)
+                            {
 
-						if ($wp =~ /(^[A-Za-z])/)
+                            }
+                            else
+                            {
+                                $includeFlag = 0;
+                            }
+                        }
+                        $lp =~ s/^_//;
+						if ($includeFlag == 1)
 						{
 							if (exists($textList{$lp}))
 							{

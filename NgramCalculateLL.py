@@ -14,7 +14,7 @@ from collections import OrderedDict
 
 def calcLLratio(singleFile, spath, refCorpusLines, totLemmasRefCorpus, rpath):
     
-   antOutput = 100
+   antOutput = 50
 
    calcCorpusLines = dict()
    totLemmasCalcCorpus = 0
@@ -37,8 +37,8 @@ def calcLLratio(singleFile, spath, refCorpusLines, totLemmasRefCorpus, rpath):
       values = str(calcCorpusLines[line])
       (lem, freq) = values.split("\t")
       freqInt = int(freq)
-      currenttotLemmasCalcCorpus = totLemmasCalcCorpus - freqInt # = corpus size minus what's been just counted
-      if (freqInt >= 5): #Change according to gram size 1 - n
+      totLemmasCalcCorpus =- freqInt # = corpus size minus what's been just counted
+      if (freqInt >= 3): #Change according to gram size 1 - n
    #      print(lem, freq)
          if lem in refCorpusLines:
    #         print(refCorpusLines[lem])
@@ -48,25 +48,22 @@ def calcLLratio(singleFile, spath, refCorpusLines, totLemmasRefCorpus, rpath):
             removeLemmaFreqFromRef = totLemmasRefCorpus - int(reffreq)
    #Call the R script
             a = str(freqInt) #Frequency of X in current file/corpus
-            b = str(currenttotLemmasCalcCorpus) #Frequency of everything else in file/corpus minus frequency of X
+            b = str(totLemmasCalcCorpus) #Frequency of everything else in file/corpus minus frequency of X
             c = str(reffreq) #Frequency of X in reference corpus
             d = str(removeLemmaFreqFromRef) #Frequency of everything else in reference corpus minus frequency of X in ref. corpus
             ps = subprocess.Popen(['Rscript', scriptpath+LLtest, a, b, c, d], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, stderror = ps.communicate()
             outputline = str(output)
-#           print(lem, a,b,c,d,outputline)
             outputline = outputline.replace('[1] ', '')
             outputline = outputline.replace("\n", '')
             valueSpruce = float(outputline)
-            valueSpruce = "%.2f" % valueSpruce
+            valueSpruce = "%.5f" % valueSpruce
             newValue = str(valueSpruce)
-            while newValue in LLSorted:
-                  tempValue = float(newValue)
-                  tempValue = tempValue + 0.01
-                  newValue = str(tempValue)
             LLSorted[newValue] = values
             numbOutputLines += 1
          else:
+   #         refvalues = str(refCorpusLines[lem])
+   #         (reflem, reffreq) = refvalues.split("\t")
             reffreq = 1
             removeLemmaFreqFromRef = totLemmasRefCorpus - int(reffreq)
    #Call the R script
@@ -80,12 +77,8 @@ def calcLLratio(singleFile, spath, refCorpusLines, totLemmasRefCorpus, rpath):
             outputline = outputline.replace('[1] ', '')
             outputline = outputline.replace("\n", '')
             valueSpruce = float(outputline)
-            valueSpruce = "%.2f" % valueSpruce
+            valueSpruce = "%.5f" % valueSpruce
             newValue = str(valueSpruce)
-            while newValue in LLSorted:
-                  tempValue = float(newValue)
-                  tempValue = tempValue + 0.01
-                  newValue = str(tempValue)
             LLSorted[newValue] = values
             numbOutputLines += 1
 
@@ -95,44 +88,26 @@ def calcLLratio(singleFile, spath, refCorpusLines, totLemmasRefCorpus, rpath):
    negativeKey = numbOutputLines - (antOutput + 1)
    print(numbOutputLines)
    print(negativeKey)
-   print(len(intLLSorted))
    singleFile = singleFile.replace(spath, "")
-   htmlFile = singleFile.replace('.txt', '.html')
-   sourceFile = htmlFile.replace('-WLL.html', '_header.xml')
-   linkFile = sourceFile
-   linkFile = linkFile.replace('_header.xml', '')
-   sourceFile = 'https://nabu.usit.uio.no/hf/ilos/cbf/source/' + sourceFile
-   outFile = open(rpath + htmlFile, "w")
-
-   outFile.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>')
-   outFile.write(htmlFile)
-   outFile.write('</title></head><body><table style="width:600px">')
-   caption = '<caption style="font-size:125%"><span style="font-weight:bold">Log-likelihood keyword statistic, <a href="' + sourceFile + '">' + linkFile + '</a></span><br/>(see Levshina, N. 2015. <i>How to do linguistics with R</i>, p. 223<i>ff</i>)</caption>'
-   outFile.write(caption)
-   outFile.write('<tr style="text-align:center"><th>Lemma_POS</th><th>Raw freq.</th><th>Log-likelihood ratio<br/>(positive and negative keywords)</th></tr>')
+   outFile = open(rpath + singleFile, "w")
    index = 0
    for item in intLLSorted:
       index += 1
       if (index <= antOutput):
-         cols1_2 = intLLSorted[item]
-         cols1_2 = cols1_2.replace("\t", "</td><td style='text-align:right'>")
-         theOutput = "<tr><td>" + cols1_2 + "</td><td style='text-align:right'>" + str(item) + "</td></tr>"
+         theOutput = intLLSorted[item] + "\t" + str(item) + "\n"
          outFile.write(theOutput)
       if (index >= negativeKey):
-         cols1_2 = intLLSorted[item]
-         cols1_2 = cols1_2.replace("\t", "</td><td style='text-align:right'>")
-#         theOutput = intLLSorted[item] + "\t" + str(item) + "\n"
-         theOutput = "<tr><td>" + cols1_2 + "</td><td style='text-align:right'>" + str(item) + "</td></tr>"
+         theOutput = intLLSorted[item] + "\t" + str(item) + "\n"
          outFile.write(theOutput)
 
-   outFile.write('</table></body></html>')
    outFile.close()
    return totCalcCorpus
 
 #MAIN
 fileExtention = re.compile("\.txt", flags=re.IGNORECASE)
 
-referenceCorpus = 'WLL-refCorpus.txt'
+#referenceCorpus = 'WLL-refCorpus.txt'
+referenceCorpus = 'Ngram-WLL-refCorpus.txt'
 scriptpath = '/home/jarlee/prog/R/script/'
 LLtest = 'scriptLog-likelihood.R'
 Rscript = 'Rscript '
@@ -157,7 +132,9 @@ with open(referenceCorpus) as file:
 totRefCorpus = len(refCorpusLines)
 
 print("Tot. numb. of unique lemmas in reference corpus: ", totRefCorpus)
+#print("Tot. numb. of unique lemmas in single file: ", totCalcCorpus)
 print("Tot. numb. of lemmas in reference corpus: ", totLemmasRefCorpus)
+#print("Tot. numb. of lemmas in single file: ", totLemmasCalcCorpus)
 totfiles = 0
 for dirpath, dirs, files in os.walk(startPath):
    for fil in files:
