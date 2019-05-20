@@ -19,6 +19,7 @@ binmode STDIN, ":utf8";
 my $css_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
 my $general_path = "https://nabu.usit.uio.no/hf/ilos/cbf/imagecssjs";
 my $source_path = "https://nabu.usit.uio.no/hf/ilos/cbf/source";
+my $LL_path = "https://nabu.usit.uio.no/hf/ilos/cbf/LL";
 my $js_path = "https://nabu.usit.uio.no/hf/cbf/ilos/imagecssjs";
 
 #For cache files used in R/Shiny
@@ -261,7 +262,8 @@ if ($searchstring)
 				{
 					if ($actualno > 0)
 					{
-						print "<tr><td>$key</td><td style='text-align:right'>$orig{$key}</td>";
+						my $log_likelihood_link = $LL_path . '/' . $key . '-WLL.html';
+						print "<tr><td><a href='$log_likelihood_link'>$key</a></td><td style='text-align:right'>$orig{$key}</td>";
 						print "<td style='text-align:right'>$empty{$key}</td>";
 
 						$perht = ($actualno / $sum) * 100000;
@@ -436,6 +438,9 @@ sub print_header
 	%contextlabels = ('59' => 'kwic', '1000' => 's-unit', '2000' => 'tab', '1500' => 's-unit5', '3000' => 's-unitT', '4000' => 'empty');
 	print "&nbsp;&nbsp;Choose kwic or other layout ";
 	print $mycgi->popup_menu(-name=>'maxcontext', -values=>\@contextvalues, -labels=>\%contextlabels);
+	print "</p></td>";
+	print "<td align='right'><p class='marg2'>Genre ";
+	print $mycgi->popup_menu(-name=>'genre', -values=>['', 'adventure', 'crime', 'general', 'historical', 'romance', 'spy', 'war']);
 	print "</p></td></tr>\n";
 	print "<tr><td colspan='2'><hr/>\n";
 	print "</td></tr></table>\n";
@@ -646,13 +651,26 @@ sub cqp
     	print $in "set Context 1 s;\n";		
 	}
 
-#Add filters gender and/ or decade
+#Add filters gender, genre and/ or decade
 	my $matching = '';
 	if ($gofA)
 	{
 		$matching = ' :: match.text_gender = "' . $gofA . '"';
 	}
 
+#If genre is set
+	if ($CBFgenre)
+	{
+
+		if ($matching)
+		{
+			$matching = $matching . ' & match.text_genre = "' . $CBFgenre . '"';
+		}
+		else
+		{
+			$matching = ' :: match.text_genre = "' . $CBFgenre . '"';
+		}
+	}
 #If period is set
 	if ($decennium)
 	{
