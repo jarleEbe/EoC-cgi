@@ -172,6 +172,29 @@ while (my $txt = readdir(DS))
 					{
 						($lemma, $pos, $problematic) = &fixproblematic($word, $pos, $lemma);
 					}
+					elsif (($word eq "ba" || $word eq "Ba") && ($pos eq 'NN1' || $pos eq 'NP1') )
+					{
+						$lemma = "be";
+						$pos = "VB0";
+						$problematic = 1;
+					}
+					elsif (($word eq "dahn" || $word eq "Dahn") && ($pos eq 'NN1' || $pos eq 'NP1' || $pos eq 'JJ' || $pos eq 'VV0' || $pos eq 'NN1') )
+					{
+						$lemma = "down";
+						$pos = "RP";
+						$problematic = 1;
+					}
+					elsif (($word eq "argyment") && ($pos eq 'NN1') )
+					{
+						$lemma = "argument";
+						$problematic = 1;
+					}
+					elsif (($word eq "nother" || $word eq "Nother") && ($pos eq 'NN1' || $pos eq 'VV0') )
+					{
+						$lemma = "another";
+						$pos = "DD1";
+						$problematic = 1;
+					}
 
 					if ($problematic == 0)
 					{
@@ -223,6 +246,76 @@ while (my $txt = readdir(DS))
 					print OUT "$c\n";
 					print "A5/Line no.: $cindex\n";
 					print "Keeping: $c\n";
+				}
+				elsif (($wf eq "'went") && ($wc eq "NN1" || $wc eq "JJ"))
+				{
+					$antAPOS++;
+					$cindex++;
+					my $newline = '"' . "\t" . '"' . "\t" . '"';
+					print OUT "$newline\n";
+					$wf =~ s/^'//;
+					$wc = "VVD";
+					$lf = "be";
+					my $fixedline = $wf . "\t" . $wc . "\t" . $lf;
+					print OUT "$fixedline\n";
+
+					print "A2/Line no.: $cindex\n";
+					print "$c\n";
+					print "$newline\n";	
+					print "$fixedline\n";
+				}
+				elsif (($wf eq "'Vive") && ($wc eq "NN1"))
+				{
+					$antAPOS++;
+					$cindex++;
+					my $newline = '"' . "\t" . '"' . "\t" . '"';
+					print OUT "$newline\n";
+					$wf =~ s/^'//;
+					$wc = "FW";
+					$lf = "vive";
+					my $fixedline = $wf . "\t" . $wc . "\t" . $lf;
+					print OUT "$fixedline\n";
+
+					print "A2/Line no.: $cindex\n";
+					print "$c\n";
+					print "$newline\n";	
+					print "$fixedline\n";
+				}
+				elsif (($wf eq "'While") && ($wc eq "NN1" || $wc eq "JJ"))
+				{
+					$antAPOS++;
+					$cindex++;
+					my $newline = '"' . "\t" . '"' . "\t" . '"';
+					print OUT "$newline\n";
+					$wf =~ s/^'//;
+					$wc = "CS";
+					$lf = "while";
+					my $fixedline = $wf . "\t" . $wc . "\t" . $lf;
+					print OUT "$fixedline\n";
+
+					print "A2/Line no.: $cindex\n";
+					print "$c\n";
+					print "$newline\n";	
+					print "$fixedline\n";
+				}
+				elsif ($wf =~ /^'/ && $lf !~ /^'/ && $wf =~ /'$/ && $lf =~ /'$/ && $lf eq "'good-night'")
+				{
+					$antAPOS++;
+					$cindex++;
+					$antAPOS++;
+					$cindex++;
+
+					my $newline = '"' . "\t" . '"' . "\t" . '"';
+					print OUT "$newline\n";
+					$wf =~ s/'//g;
+					$lf =~ s/'//g;
+					my $fixedline = $wf . "\t" . $wc . "\t" . $lf;
+					print OUT "$fixedline\n";
+					print OUT "$newline\n";
+					print "A2/Line no.: $cindex\n";
+					print "$c\n";
+					print "$newline\n";	
+					print "$fixedline\n";
 				}
 				elsif ($wf =~ /^'/ && $lf !~ /^'/ && (exists($secondAPOSlist{$lf})))
 				{
@@ -475,7 +568,29 @@ sub fixproblematic
 		$llemma = "have";
 		$problem_fixed = 1;
 	}
-	elsif (($w eq "ha'" || $w eq "Ha'" || $w eq "'av") && ($p eq "VV0" || $p eq "VVI" ) )
+	elsif (($w eq "'a'") && ($p eq "VVI" ) )
+	{
+		$llemma = "have";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'a'") && ($p eq "VV0" ) )
+	{
+		$llemma = "a";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'b'") && ($p eq "VV0" ) )
+	{
+		$llemma = "b";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'b") && ($p eq "VVI" || $p eq "NN1") )
+	{
+		$llemma = "b";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}	elsif (($w eq "ha'" || $w eq "Ha'" || $w eq "'av") && ($p eq "VV0" || $p eq "VVI" ) )
 	{
 		$llemma = "have";
 		$problem_fixed = 1;
@@ -541,7 +656,7 @@ sub fixproblematic
 		$p = "VVI";
 		$problem_fixed = 1;
 	}
-	elsif (($w eq "'phone") && ($p eq "NN1" ) )
+	elsif (($w eq "'phone" || $w eq "'Phone") && ($p eq "NN1" ) )
 	{
 		$llemma = "phone";
 		$problem_fixed = 1;
@@ -574,7 +689,7 @@ sub fixproblematic
 		$p = "XX";
 		$problem_fixed = 1;
 	}
-	elsif (($w eq "'Bout" || $w eq "'bout") && ($p eq "II" || $p eq "RG") )
+	elsif (($w eq "'Bout" || $w eq "'bout") && ($p eq "II" || $p eq "RG"  || $p eq "RP") )
 	{
 		$llemma = "about";
 		$problem_fixed = 1;
@@ -589,7 +704,7 @@ sub fixproblematic
 		$llemma = "make";
 		$problem_fixed = 1;
 	}
-	elsif (($w eq "mak'") && ($p eq "NN1") )
+	elsif (($w eq "mak'" || $w eq "Mak'") && ($p eq "NN1" || $p eq 'JJ') )
 	{
 		$llemma = "make";
 		$p = "VV0";
@@ -649,6 +764,12 @@ sub fixproblematic
 		$problem_fixed = 1;
 	}
 	elsif (($w eq "Yo'" || $w eq "yo'") && ($p eq "NNU" || $p eq "NP1") )
+	{
+		$llemma = "you";
+		$p = "PPY";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "tha'" || $w eq "Tha'") && ($p eq "NN1" || $p eq "JJ" || $p eq 'VV0') )
 	{
 		$llemma = "you";
 		$p = "PPY";
@@ -762,7 +883,19 @@ sub fixproblematic
 	elsif (($w eq "'Little" || $w eq "'little") && ($p eq "NN1") )
 	{
 		$llemma = "little";
-		$p = "DA1";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "lil'") && ($p eq "NN1" || $p eq 'JJ') )
+	{
+		$llemma = "little";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "lor'" || $w eq "Lor'") && ($p eq "NP1" || $p eq 'VV0' || $p eq 'JJ') )
+	{
+		$llemma = "lord";
+		$p = "NP1";
 		$problem_fixed = 1;
 	}
 	elsif (($w eq "'On" || $w eq "'on") && ($p eq "JJ") )
@@ -1028,7 +1161,7 @@ sub fixproblematic
 		$p = "VVG";
 		$problem_fixed = 1;
 	}
-	elsif (($w eq "M'"|| $w eq "m'") && ($p eq "NP1" || $p eq "VV0" || $p eq "JJ") )
+	elsif (($w eq "M'"|| $w eq "m'") && ($p eq "NP1" || $p eq "VV0" || $p eq "JJ" || $p eq "APPGE" || $p eq "VVI") )
 	{
 		$llemma = "my";
 		$p = "APPGE";
@@ -1172,6 +1305,174 @@ sub fixproblematic
 		$p = "VVG";
 		$problem_fixed = 1;
 	}
+	elsif (($w eq "'en") && ($p eq 'NN1') )
+	{
+		$llemma = "en";
+		$p = "PPHO1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'ess") && ($p eq 'NN1' || $p eq 'VV0') )
+	{
+		$llemma = "yes";
+		$p = "UH";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'f") && ($p eq 'NN1'))
+	{
+		$llemma = "f";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'r") && ($p eq 'NN1'))
+	{
+		$llemma = "r";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'g") && ($p eq 'NN1'))
+	{
+		$llemma = "g";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'h") && ($p eq 'NN1'))
+	{
+		$llemma = "h";
+		$p = "ZZ1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'ess") && ($p eq 'VV0'))
+	{
+		$llemma = "yes";
+		$p = "IO";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'eft") && ($p eq 'NN1'))
+	{
+		$llemma = "left";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'ight") && ($p eq 'NN1'))
+	{
+		$llemma = "right";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'il") && ($p eq 'NN1' || $p eq 'VV0'))
+	{
+		$llemma = "right";
+		$p = "FW";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'lo") && ($p eq 'NN1'))
+	{
+		$llemma = "lo";
+		$p = "FU";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'melia") && ($p eq 'NN1'))
+	{
+		$llemma = "melia";
+		$p = "NP1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'mima") && ($p eq 'NN1'))
+	{
+		$llemma = "mima";
+		$p = "NP1";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'nother") && ($p eq 'DD1'))
+	{
+		$llemma = "another";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'nough" || $w eq "'nuff" || $w eq "eno'") && ($p eq 'NN1' || $p eq 'VV0' || $p eq 'JJ' || $p eq 'VVI'))
+	{
+		$llemma = "enough";
+		$p = "RG";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'sh") && ($p eq 'NNU'))
+	{
+		$llemma = "sh";
+		$p = "UH";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'til") && ($p eq 'NN1' || $p eq 'VV0'))
+	{
+		$llemma = "until";
+		$p = "CS";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "'um") && ($p eq 'NN1' || $p eq "UH"))
+	{
+		$llemma = "um";
+		$p = "UH";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "agen'" || $w eq "Agen'") && ($p eq 'VV0' || $p eq "JJ"))
+	{
+		$llemma = "against";
+		$p = "II";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "d'") && ($p eq 'NN122'))
+	{
+		$llemma = "de";
+		$p = "FW";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "de'") && ($p eq 'NN1' || $p eq 'JJ'))
+	{
+		$llemma = "de";
+		$p = "FW";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "fin'") && ($p eq 'VVG'))
+	{
+		$llemma = "find";
+		$p = "VVI";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "fu'" || $w eq "Fu'") && ($p eq 'JJ' || $p eq 'NN1'))
+	{
+		$llemma = "full";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "fou'") && ($p eq 'JJ' || $p eq 'NN1' || $p eq 'VV0'))
+	{
+		$llemma = "full";
+		$p = "JJ";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "ge'" || $w eq "Ge'") && ($p eq 'VV0' || $p eq 'NN1' || $p eq 'JJ'))
+	{
+		$llemma = "get";
+		$p = "VV0";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "gi'" || $w eq "Gi'") && ($p eq 'VV0' || $p eq 'VVI' || $p eq 'JJ'))
+	{
+		$llemma = "give";
+		$p = "VV0";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "wer'" || $w eq "Wer'") && ($p eq 'VV0'))
+	{
+		$llemma = "be";
+		$p = "VBDR";
+		$problem_fixed = 1;
+	}
+	elsif (($w eq "wha'" || $w eq "Wha'") && ($p eq 'JJ' || $p eq 'NN1'))
+	{
+		$llemma = "what";
+		$p = "DDQ";
+		$problem_fixed = 1;
+	}
+
 	return $llemma, $p, $problem_fixed;
 }
 # http://ucrel.lancs.ac.uk/claws7tags.html / http://www.scientificpsychic.com/grammar/regular.html
@@ -1395,6 +1696,8 @@ sub fill_RESTing()
 		"ceilin'" => "ceiling",
 		"'andle" => "handle",
 		"'eap" => "heap",
+		"han'" => "hand",
+		"'ark" => "hark",
 		"'unt" => "hunt",
 		"'erb" => "herb",
 		"'acker" => "hacker",
@@ -1416,6 +1719,7 @@ sub fill_RESTing()
 		"'most" => "almost",
 		"'ome" => "home",
 		"'ouse" => "house",
+		"'ush" => "hush",
 		"'ead" => "head",
 		"'ear" => "hear",
 		"'elp" => "help",
@@ -1436,6 +1740,7 @@ sub fill_RESTing()
 		"'orse" => "horse",
 		"'uns" => "ones",
 		"'cause" => "because",
+		"'cos" => "because",
 		"'eart" => "heart",
 		"'ardly" => "hardly",
 		"'appen" => "happen",
@@ -1466,7 +1771,9 @@ sub fill_RESTing()
 		"'oman" => "woman",
 		"'opes" => "hope",
 		"'ope" => "hope",
+		"'oped" => "hope",
 		"'oss" => "horse",
+		"'orld" => "world",
 		"'spect" => "expect",
 		"'emselves" => "themselves",
 		"hersel'" => "herself",
@@ -1804,6 +2111,7 @@ sub fill_RESTing()
 		"stirrin'" => "stir",
 		"strappin'" => "strap",
 		"tremblin'" => "tremble",
+		"steppin'" => "step",
 		"writin'" => "write");
 
 }
@@ -1822,7 +2130,6 @@ sub fillJing()
 		"damn'" => "damned",
 		"dam'" => "damned",
 		"awfu'" => "awful",
-		"fu'" => "full",
 		"'ot" => "hot",
 		"li'l'" => "little",
 		"'appy" => "happy",
@@ -1833,7 +2140,7 @@ sub fillJing()
 		"'andy" => "handy",
 		"'ard" => "hard",
 		"'urt" => "hurt",
-		"'urting" => "hurt",
+		"'urting" => "hurting",
 		"'igh" => "high",
 		"ol'" => "old",
 		"'fraid" => "afraid",
@@ -1896,7 +2203,7 @@ sub fillJing()
 		"kickin'" => "kicking",
 		"killin'" => "killing",
 		"kissin'" => "kissing",
-		"knockin'" => "knocingk",
+		"knockin'" => "knocking",
 		"knowin'" => "knowing",
 		"laughin'" => "laughing",
 		"leavin'" => "leaving",
@@ -1989,6 +2296,9 @@ sub fillJing()
 		"touchin'" => "touching",
 		"shockin'" => "shocking",
 		"foldin'" => "folding",
+		"strappin'" => "strapping",
+		"steppin'" => "stepping",
+		"thousan'" => "thousand",
 		"writin'" => "writing");
 }
 
@@ -2045,7 +2355,7 @@ sub fillAPOSlist()
 		"'green" => "JJ",
 		"'hello" => "UH",
 		"'jane" => "NP1",
-		"'la" => "FU",
+		"'la" => "FW",
 		"'no" => "AT");
 }
 
@@ -2053,6 +2363,7 @@ sub fillAPOSlist()
 sub fillsecondAPOSlist()
 {
 #List of lemmas where the corresponding word, but not the lemma (listed), has a ' to indicate an ellided character
+#I.e. the lemmatizer got it right
     %secondAPOSlist = (
 		"for" => "unknown",
 		"one" => "unknown",
@@ -2106,8 +2417,14 @@ sub fillsecondAPOSlist()
 sub fillthirdAPOSlist()
 {
 #List of lemmas where both word and lemma end in ' and where ' must be changed to "
-
+#I.e. the lemmatizer got it wrong
     %thirdAPOSlist = (
+		"a'" => "a",
+		"b'" => "b",
+		"me'" => "me",
+		"men'" => "men",
+		"women'" => "women",
+		"to'" => "to",
 		"alex'" => "alex",
 		"alone'" => "alone",
 		"boy'" => "boy",
@@ -2176,7 +2493,7 @@ sub fillthirdAPOSlist()
 sub fillfourthAPOSlist()
 {
 #List of lemmas where both word and lemma start with ' and where ' must be changed to "
-
+#I.e. the lemmatizer got it wrong
     %fourthAPOSlist = (
 		"'abide" => "abide",
 		"'about" => "about",
@@ -2202,6 +2519,7 @@ sub fillfourthAPOSlist()
 		"'better" => "better",
 		"'black" => "black",
 		"'bloody" => "bloody",
+		"'blue" => "blue",
 		"'body" => "body",
 		"'boy" => "boy",
 		"'bring" => "bring",
@@ -2233,6 +2551,7 @@ sub fillfourthAPOSlist()
 		"'david" => "david",
 		"'dead" => "dead",
 		"'death" => "death",
+		"'de" => "de",
 		"'deed" => "deed",
 		"'devil" => "devil",
 		"'diana" => "diana",
@@ -2242,7 +2561,9 @@ sub fillfourthAPOSlist()
 		"'done" => "done",
 		"'down" => "down",
 		"'dr" => "dr",
+		"'eh" => "eh",
 		"'eighties" => ",  eighties",
+		"'el" => "el",
 		"'enery" => "enery",
 		"'england" => "england",
 		"'even" => "even",
@@ -2268,7 +2589,7 @@ sub fillfourthAPOSlist()
 		"'giving" => "giving",
 		"'god" => "god",
 		"'gone" => "gone",
-		"'good-bye" => ",  good-bye",
+		"'good-bye" => ", good-bye",
 		"'good-bye'" => ", good-bye'",
 		"'goodbye" => "goodbye",
 		"'good-night" => "good-night",
@@ -2278,6 +2599,8 @@ sub fillfourthAPOSlist()
 		"'had" => "had",
 		"'hallo" => "hallo",
 		"'happy" => "happy",
+		"'holy" => "holy",
+		"'honest" => "honest",
 		"'has" => "has",
 		"'having" => "having",
 		"'heart" => "heart",
@@ -2304,6 +2627,7 @@ sub fillfourthAPOSlist()
 		"'live" => "live",
 		"'living" => "living",
 		"'long" => "long",
+		"'load" => "load",
 		"'lord" => "lord",
 		"'lorelei" => "lorelei",
 		"'lost" => "lost",
@@ -2345,6 +2669,8 @@ sub fillfourthAPOSlist()
 		"'point" => "point",
 		"'police" => "police",
 		"'prentice" => ",  prentice",
+		"'pretty" => "pretty",
+		"'prince" => "prince",
 		"'private" => "private",
 		"'put" => "put",
 		"'putting" => "putting",
@@ -2446,7 +2772,6 @@ sub fillfourthAPOSlist()
 		"'enough" => "enough",
 		"'extra" => "extra",
 		"'fire" => "fire",
-		"'good-night" => "good-night",
 		"'hard" => "hard",
 		"'hush" => "hush",
 		"'ill" => "ill",
@@ -2467,7 +2792,9 @@ sub fillfourthAPOSlist()
 		"'say" => "say",
 		"'set" => "set",
 		"'seven" => "seven",
+		"'ship" => "ship",
 		"'sorry" => "sorry",
+		"'staying" => "staying",
 		"'suffer" => "suffer",
 		"'surely" => "surely",
 		"'taking" => "taking",
